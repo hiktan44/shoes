@@ -6,7 +6,8 @@ import { ensureUrl } from '@/lib/kieUpload';
 import { EXPERT_PERSONA } from '@/lib/promptBuilder';
 import { createClient } from '@/lib/supabase/server';
 
-export const maxDuration = 26;
+// Coolify'da function timeout yok, fakat Next.js / Node default body okuma sınırları geçerli
+export const maxDuration = 120;
 
 type AnalyzePayload = {
   imageUrl: string;
@@ -56,48 +57,62 @@ Output STRICT JSON only, matching this exact schema (no markdown fences, no comm
 Be honest about uncertainty (use "unknown" if you cannot tell). Never invent SKUs, prices or brand names that aren't visible.`;
 }
 
-async function callOpenAI(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY missing');
-  const model = process.env.OPENAI_ANALYZE_MODEL || 'gpt-5';
-  const sys = instructions(language, shoeType);
-
-  const res = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: sys },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Analyze this shoe and return the JSON described in the system message.' },
-            { type: 'image_url', image_url: { url: imageUrl } },
-          ],
-        },
-      ],
-    },
-    {
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      timeout: 24_000,
-    }
-  );
-
-  const txt = res.data?.choices?.[0]?.message?.content;
-  if (!txt) throw new Error('OpenAI: empty response');
-  return JSON.parse(txt) as AnalyzeResult;
+function axiosErrorMessage(prefix: string, e: unknown): string {
+  const err = e as { code?: string; message?: string; response?: { status?: number; data?: unknown } };
+  const status = err.response?.status;
+  const body = err.response?.data;
+  const bodySummary = body
+    ? (typeof body === 'string'
+        ? body.slice(0, 400)
+        : JSON.stringify(body).slice(0, 400))
+    : '';
+  if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
+    return `${prefix} timeout (${err.message || 'no message'})`;
+  }
+  return `${prefix} ${status ?? ''} ${err.message || ''} ${bodySummary}`.trim();
 }
 
-async function callGemini(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY missing');
-  const model = process.env.GEMINI_ANALYZE_MODEL || 'gemini-2.5-pro';
+async function callOpenAI(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OpenAI: OPENAI_API_KEY missing');
+  const model = process.env.OPENAI_ANALYZE_MODEL || 'gpt-4o';
   const sys = instructions(language, shoeType);
 
-  // Görseli inlineData olarak göndermek için fetch + base64
+  try {
+    const res = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: sys },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Analyze this shoe and return the JSON described in the system message.' },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          },
+        ],
+      },
+      {
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        timeout: 90_000,
+      }
+    );
+
+    const txt = res.data?.choices?.[0]?.message?.content;
+    if (!txt) throw new Error('OpenAI: empty response');
+    return JSON.parse(txt) as AnalyzeResult;
+  } catch (e) {
+    throw new Error(axiosErrorMessage('OpenAI:', e));
+  }
+}
+
+async function geminiCall(model: string, imageUrl: string, sys: string): Promise<AnalyzeResult> {
+  const key = process.env.GEMINI_API_KEY!;
+
   let inlineData: { mimeType: string; data: string } | null = null;
-  let fileData: { mimeType: string; fileUri: string } | null = null;
 
   if (imageUrl.startsWith('data:')) {
     const m = imageUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.*)$/);
@@ -108,13 +123,13 @@ async function callGemini(imageUrl: string, language: 'tr' | 'en', shoeType?: st
     const mime = (r.headers['content-type'] || 'image/jpeg').split(';')[0];
     const data = Buffer.from(r.data).toString('base64');
     inlineData = { mimeType: mime, data };
-    fileData = null;
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-  const parts: object[] = [{ text: 'Analyze this shoe and return the JSON described in the system instruction.' }];
-  if (inlineData) parts.push({ inlineData });
-  if (fileData) parts.push({ fileData });
+  const parts: object[] = [
+    { text: 'Analyze this shoe and return the JSON described in the system instruction.' },
+    { inlineData },
+  ];
 
   const res = await axios.post(
     url,
@@ -123,12 +138,37 @@ async function callGemini(imageUrl: string, language: 'tr' | 'en', shoeType?: st
       contents: [{ role: 'user', parts }],
       generationConfig: { responseMimeType: 'application/json' },
     },
-    { headers: { 'Content-Type': 'application/json' }, timeout: 24_000 }
+    { headers: { 'Content-Type': 'application/json' }, timeout: 90_000 }
   );
 
   const txt = res.data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
   if (!txt) throw new Error('Gemini: empty response');
   return JSON.parse(txt) as AnalyzeResult;
+}
+
+async function callGemini(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
+  if (!process.env.GEMINI_API_KEY) throw new Error('Gemini: GEMINI_API_KEY missing');
+  const sys = instructions(language, shoeType);
+  const requested = process.env.GEMINI_ANALYZE_MODEL || 'gemini-2.5-pro';
+  // Eğer kullanıcının istediği model 400/404 dönerse otomatik olarak stable modele düş
+  const fallbacks = [requested, 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+  const tried = new Set<string>();
+  let lastErr: unknown = null;
+  for (const m of fallbacks) {
+    if (tried.has(m)) continue;
+    tried.add(m);
+    try {
+      return await geminiCall(m, imageUrl, sys);
+    } catch (e) {
+      lastErr = e;
+      const status = (e as { response?: { status?: number } }).response?.status;
+      // Sadece 400/404 (model yok / desteklenmiyor) durumunda fallback'e geç
+      if (status !== 400 && status !== 404) {
+        throw new Error(axiosErrorMessage('Gemini:', e));
+      }
+    }
+  }
+  throw new Error(axiosErrorMessage('Gemini (all models failed):', lastErr));
 }
 
 export async function POST(request: Request) {
