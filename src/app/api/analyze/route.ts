@@ -127,41 +127,56 @@ function axiosErrorMessage(prefix: string, e: unknown): string {
   return `${prefix} ${status ?? ''} ${err.message || ''} ${bodySummary}`.trim();
 }
 
+async function openAICall(model: string, imageUrl: string, sys: string): Promise<AnalyzeResult> {
+  const key = process.env.OPENAI_API_KEY!;
+  const res = await axios.post(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: sys },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Analyze this shoe and return the JSON described in the system message.' },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+    },
+    {
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      timeout: 90_000,
+    }
+  );
+  const txt = res.data?.choices?.[0]?.message?.content;
+  if (!txt) throw new Error(`OpenAI (${model}): empty response`);
+  return JSON.parse(txt) as AnalyzeResult;
+}
+
 async function callOpenAI(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OpenAI: OPENAI_API_KEY missing');
-  const model = process.env.OPENAI_ANALYZE_MODEL || 'gpt-4o';
+  if (!process.env.OPENAI_API_KEY) throw new Error('OpenAI: OPENAI_API_KEY missing');
   const sys = instructions(language, shoeType);
-
-  try {
-    const res = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: sys },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Analyze this shoe and return the JSON described in the system message.' },
-              { type: 'image_url', image_url: { url: imageUrl } },
-            ],
-          },
-        ],
-      },
-      {
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        timeout: 90_000,
+  const requested = process.env.OPENAI_ANALYZE_MODEL || 'gpt-5.5';
+  // Kullanıcı modeli 400/404 dönerse stable modele düş
+  const fallbacks = [requested, 'gpt-5.5-pro', 'gpt-5.5', 'gpt-4o'];
+  const tried = new Set<string>();
+  let lastErr: unknown = null;
+  for (const m of fallbacks) {
+    if (!m || tried.has(m)) continue;
+    tried.add(m);
+    try {
+      return await openAICall(m, imageUrl, sys);
+    } catch (e) {
+      lastErr = e;
+      const status = (e as { response?: { status?: number } }).response?.status;
+      if (status !== 400 && status !== 404) {
+        throw new Error(axiosErrorMessage(`OpenAI(${m}):`, e));
       }
-    );
-
-    const txt = res.data?.choices?.[0]?.message?.content;
-    if (!txt) throw new Error('OpenAI: empty response');
-    return JSON.parse(txt) as AnalyzeResult;
-  } catch (e) {
-    throw new Error(axiosErrorMessage('OpenAI:', e));
+    }
   }
+  throw new Error(axiosErrorMessage('OpenAI (all models failed):', lastErr));
 }
 
 async function geminiCall(model: string, imageUrl: string, sys: string): Promise<AnalyzeResult> {
@@ -204,9 +219,9 @@ async function geminiCall(model: string, imageUrl: string, sys: string): Promise
 async function callGemini(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
   if (!process.env.GEMINI_API_KEY) throw new Error('Gemini: GEMINI_API_KEY missing');
   const sys = instructions(language, shoeType);
-  const requested = process.env.GEMINI_ANALYZE_MODEL || 'gemini-2.5-pro';
+  const requested = process.env.GEMINI_ANALYZE_MODEL || 'gemini-3.1-pro-preview';
   // Eğer kullanıcının istediği model 400/404 dönerse otomatik olarak stable modele düş
-  const fallbacks = [requested, 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+  const fallbacks = [requested, 'gemini-3.1-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro'];
   const tried = new Set<string>();
   let lastErr: unknown = null;
   for (const m of fallbacks) {
