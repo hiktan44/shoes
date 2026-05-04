@@ -57,6 +57,61 @@ Output STRICT JSON only, matching this exact schema (no markdown fences, no comm
 Be honest about uncertainty (use "unknown" if you cannot tell). Never invent SKUs, prices or brand names that aren't visible.`;
 }
 
+async function callOpenRouter(imageUrl: string, language: 'tr' | 'en', shoeType?: string): Promise<AnalyzeResult> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error('OpenRouter: OPENROUTER_API_KEY missing');
+  const sys = instructions(language, shoeType);
+
+  const primary = process.env.OPENROUTER_MODEL || 'openai/gpt-5.5';
+  const fallback = process.env.OPENROUTER_FALLBACK_MODEL || 'google/gemini-3.1-pro-preview';
+  const safety = ['openai/gpt-4o', 'google/gemini-2.5-pro'];
+  const chain = [primary, fallback, ...safety];
+
+  let lastErr: unknown = null;
+  const tried = new Set<string>();
+  for (const model of chain) {
+    if (!model || tried.has(model)) continue;
+    tried.add(model);
+    try {
+      const res = await axios.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          model,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: sys },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Analyze this shoe and return the JSON described in the system message.' },
+                { type: 'image_url', image_url: { url: imageUrl } },
+              ],
+            },
+          ],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://fasheone-shoes',
+            'X-Title': 'Fasheone Shoes',
+          },
+          timeout: 90_000,
+        }
+      );
+      const txt = res.data?.choices?.[0]?.message?.content;
+      if (!txt) throw new Error(`OpenRouter (${model}): empty response`);
+      return JSON.parse(txt) as AnalyzeResult;
+    } catch (e) {
+      lastErr = e;
+      const status = (e as { response?: { status?: number } }).response?.status;
+      // 4xx model bulunamadı / param hatası → fallback'e devam et; 5xx ve timeout → da devam
+      if (status && status < 400) throw new Error(axiosErrorMessage(`OpenRouter(${model}):`, e));
+    }
+  }
+  throw new Error(axiosErrorMessage('OpenRouter (all models failed):', lastErr));
+}
+
 function axiosErrorMessage(prefix: string, e: unknown): string {
   const err = e as { code?: string; message?: string; response?: { status?: number; data?: unknown } };
   const status = err.response?.status;
@@ -198,32 +253,44 @@ export async function POST(request: Request) {
     const hostedUrl = imageUrl.startsWith('data:') ? await ensureUrl(imageUrl) : imageUrl;
     if (!hostedUrl) return NextResponse.json({ error: 'Görsel yüklenemedi' }, { status: 500 });
 
-    let provider: 'openai' | 'gemini' | null = null;
+    let provider: 'openrouter' | 'openai' | 'gemini' | null = null;
     let result: AnalyzeResult | null = null;
-    let firstError: string | null = null;
+    const errors: string[] = [];
 
-    if (process.env.OPENAI_API_KEY) {
+    // 1) OpenRouter (varsa) — kullanıcının verdiği OPENROUTER_MODEL'i + fallback chain'i dener
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        result = await callOpenRouter(hostedUrl, language, shoeType);
+        provider = 'openrouter';
+      } catch (e) {
+        errors.push((e as Error).message);
+      }
+    }
+
+    // 2) OpenAI direct (key varsa)
+    if (!result && process.env.OPENAI_API_KEY) {
       try {
         result = await callOpenAI(hostedUrl, language, shoeType);
         provider = 'openai';
       } catch (e) {
-        firstError = `OpenAI: ${(e as Error).message}`;
+        errors.push((e as Error).message);
       }
     }
 
+    // 3) Gemini direct (key varsa)
     if (!result && process.env.GEMINI_API_KEY) {
       try {
-        // Gemini original imageUrl ile (data URL veya https) çalışabilir
         result = await callGemini(imageUrl, language, shoeType);
         provider = 'gemini';
       } catch (e) {
-        const second = `Gemini: ${(e as Error).message}`;
-        firstError = firstError ? `${firstError} | ${second}` : second;
+        errors.push((e as Error).message);
       }
     }
 
     if (!result) {
-      const msg = firstError || 'Hiçbir LLM sağlayıcısı yapılandırılmamış (OPENAI_API_KEY veya GEMINI_API_KEY gerekli)';
+      const msg = errors.length
+        ? errors.join(' | ')
+        : 'Hiçbir LLM sağlayıcısı yapılandırılmamış (OPENROUTER_API_KEY, OPENAI_API_KEY veya GEMINI_API_KEY gerekli)';
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
