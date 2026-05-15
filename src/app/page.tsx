@@ -44,6 +44,13 @@ export default function WorkspacePage() {
   const [retouchRegion, setRetouchRegion] = useState<string>('');
   const [retouchColor, setRetouchColor] = useState('');
   const [retouchResult, setRetouchResult] = useState<string | null>(null);
+  const [brushSize, setBrushSize] = useState(48);
+  const [hasMask, setHasMask] = useState(false);
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);   // saf maske (siyah/beyaz) — API'ye gider
+  const displayCanvasRef = useRef<HTMLCanvasElement | null>(null); // kullanıcının gördüğü overlay
+  const isPaintingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const sourceImgRef = useRef<HTMLImageElement | null>(null);
   
   // Foto State
   const [image, setImage] = useState<string | null>(null);
@@ -438,6 +445,132 @@ export default function WorkspacePage() {
     }
   };
 
+  // Maskeyi temizle (her iki canvas'ı sıfırla, görseli tekrar çiz)
+  const clearMask = useCallback(() => {
+    const m = maskCanvasRef.current;
+    const d = displayCanvasRef.current;
+    const img = sourceImgRef.current;
+    if (!m || !d) return;
+    const mctx = m.getContext('2d');
+    const dctx = d.getContext('2d');
+    if (!mctx || !dctx) return;
+    mctx.clearRect(0, 0, m.width, m.height);
+    mctx.fillStyle = '#000';
+    mctx.fillRect(0, 0, m.width, m.height);
+    dctx.clearRect(0, 0, d.width, d.height);
+    if (img && img.complete) {
+      dctx.drawImage(img, 0, 0, d.width, d.height);
+    }
+    setHasMask(false);
+  }, []);
+
+  // Kaynak görseli canvas'a yükle (her source/result değişiminde tetiklenir)
+  useEffect(() => {
+    if (activeTab !== 'rotush') return;
+    const src = retouchSource || result;
+    if (!src) return;
+    const display = displayCanvasRef.current;
+    const mask = maskCanvasRef.current;
+    if (!display || !mask) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Sabit yüksekliğe oturt, en-boy oranı koru
+      const MAX_W = 800;
+      const MAX_H = 700;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      const ratio = Math.min(MAX_W / w, MAX_H / h, 1);
+      w = Math.round(w * ratio);
+      h = Math.round(h * ratio);
+      display.width = w;
+      display.height = h;
+      mask.width = w;
+      mask.height = h;
+
+      const dctx = display.getContext('2d');
+      const mctx = mask.getContext('2d');
+      if (!dctx || !mctx) return;
+      dctx.drawImage(img, 0, 0, w, h);
+      mctx.fillStyle = '#000';
+      mctx.fillRect(0, 0, w, h);
+      sourceImgRef.current = img;
+      setHasMask(false);
+    };
+    img.onerror = () => {
+      // CORS engellerse: fetch → blob → object URL ile tekrar dene
+      fetch(src).then(r => r.blob()).then(b => {
+        img.src = URL.createObjectURL(b);
+      }).catch(() => undefined);
+    };
+    img.src = src;
+  }, [activeTab, retouchSource, result]);
+
+  // Fırça vuruşu — hem maske hem display canvas'ına yazar
+  const paintAt = (clientX: number, clientY: number) => {
+    const display = displayCanvasRef.current;
+    const mask = maskCanvasRef.current;
+    if (!display || !mask) return;
+    const rect = display.getBoundingClientRect();
+    const scaleX = display.width / rect.width;
+    const scaleY = display.height / rect.height;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+    const r = (brushSize * scaleX) / 2;
+
+    const mctx = mask.getContext('2d');
+    const dctx = display.getContext('2d');
+    if (!mctx || !dctx) return;
+
+    // Çizgisel boya: önceki nokta varsa aradaki segmenti doldur
+    const last = lastPointRef.current;
+    mctx.fillStyle = '#fff';
+    dctx.fillStyle = 'rgba(34, 211, 238, 0.45)'; // cyan-ish
+    const stamp = (px: number, py: number) => {
+      mctx.beginPath();
+      mctx.arc(px, py, r, 0, Math.PI * 2);
+      mctx.fill();
+      dctx.beginPath();
+      dctx.arc(px, py, r, 0, Math.PI * 2);
+      dctx.fill();
+    };
+    if (last) {
+      const steps = Math.max(1, Math.floor(Math.hypot(x - last.x, y - last.y) / 4));
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        stamp(last.x + (x - last.x) * t, last.y + (y - last.y) * t);
+      }
+    } else {
+      stamp(x, y);
+    }
+    lastPointRef.current = { x, y };
+    if (!hasMask) setHasMask(true);
+  };
+
+  const onCanvasDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    isPaintingRef.current = true;
+    lastPointRef.current = null;
+    paintAt(e.clientX, e.clientY);
+  };
+  const onCanvasMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isPaintingRef.current) return;
+    paintAt(e.clientX, e.clientY);
+  };
+  const onCanvasUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    isPaintingRef.current = false;
+    lastPointRef.current = null;
+    try { (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId); } catch {}
+  };
+
+  const exportMaskDataUrl = (): string | null => {
+    if (!hasMask) return null;
+    const m = maskCanvasRef.current;
+    if (!m) return null;
+    return m.toDataURL('image/png');
+  };
+
   const handleRetouch = async () => {
     const source = retouchSource || result;
     if (!source) {
@@ -472,11 +605,13 @@ export default function WorkspacePage() {
         throw new Error('Rötuş zaman aşımına uğradı');
       };
 
+      const maskUrl = exportMaskDataUrl();
       const r = await fetch('/api/generate/retouch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sourceUrl: source,
+          maskUrl: maskUrl || undefined,
           referenceUrl: retouchReference || undefined,
           instruction: retouchInstruction || undefined,
           region: retouchRegion || undefined,
@@ -893,6 +1028,76 @@ export default function WorkspacePage() {
           <div className="lg:col-span-6 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl relative overflow-hidden flex items-center justify-center min-h-[500px]">
             <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
+            {/* RÖTUŞ SONUCU */}
+            {activeTab === 'rotush' && retouchResult && !loading && (
+              <div className="relative z-10 w-full h-full group p-4 flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={retouchResult} alt="Retouch Result" className="max-h-full object-contain rounded-xl shadow-2xl ring-1 ring-cyan-500/20" />
+                <div className="absolute bottom-8 flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => { setRetouchResult(null); setHasMask(false); }} className="px-5 py-2.5 bg-zinc-900/90 hover:bg-zinc-800 backdrop-blur border border-zinc-600 rounded-xl text-sm font-medium text-white shadow-xl">
+                    Yeni Rötuş
+                  </button>
+                  <button onClick={() => { setRetouchSource(retouchResult); setRetouchResult(null); setHasMask(false); }} className="px-5 py-2.5 bg-cyan-700/90 hover:bg-cyan-600 backdrop-blur border border-cyan-400/50 rounded-xl text-sm font-medium text-white shadow-xl">
+                    Bunun Üzerine Rötuş
+                  </button>
+                  <button onClick={() => downloadImage(retouchResult)} className="px-5 py-2.5 bg-indigo-600/90 hover:bg-indigo-500 backdrop-blur border border-indigo-400/50 rounded-xl text-sm font-medium text-white shadow-xl flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    İndir
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* RÖTUŞ MOD — büyük canvas + fırça */}
+            {activeTab === 'rotush' && (retouchSource || result) && multiResults.length === 0 && !loading && !retouchResult && (
+              <div className="relative z-10 w-full h-full p-4 flex flex-col">
+                {/* Brush Toolbar */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800/60">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-400">Fırça</span>
+                    <input
+                      type="range"
+                      min={10}
+                      max={150}
+                      value={brushSize}
+                      onChange={e => setBrushSize(parseInt(e.target.value, 10))}
+                      className="w-32 accent-cyan-500"
+                    />
+                    <span className="text-xs text-cyan-300 w-8">{brushSize}px</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasMask && <span className="text-[11px] text-cyan-400">● Bölge işaretli</span>}
+                    <button
+                      onClick={clearMask}
+                      disabled={!hasMask}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Maskeyi Temizle
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex items-center justify-center overflow-auto custom-scrollbar">
+                  <div className="relative inline-block">
+                    <canvas
+                      ref={displayCanvasRef}
+                      onPointerDown={onCanvasDown}
+                      onPointerMove={onCanvasMove}
+                      onPointerUp={onCanvasUp}
+                      onPointerCancel={onCanvasUp}
+                      className="block max-w-full max-h-full rounded-lg shadow-2xl ring-1 ring-white/10 cursor-crosshair touch-none select-none"
+                      style={{ background: '#0a0a0a' }}
+                    />
+                    <canvas ref={maskCanvasRef} className="hidden" />
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-zinc-500 text-center mt-2">
+                  Görselin üzerinde değişmesini istediğin alanı boyayın. Fırça boyutunu üstten ayarlayın. Maske olmadan da göndererek serbest düzenleme yapabilirsiniz.
+                </p>
+              </div>
+            )}
+
             {/* Çoklu Poz Sonuç Grid */}
             {multiResults.length > 0 && (
               <div className="relative z-10 w-full h-full p-4 overflow-y-auto custom-scrollbar">
@@ -986,7 +1191,11 @@ export default function WorkspacePage() {
             )}
 
             {/* Boş Ekran */}
-            {multiResults.length === 0 && ((activeTab === 'foto' && !image) || (activeTab === 'tasarim' && !designPrompt && !sketchImage) || (activeTab === 'rotush' && !retouchSource && !result)) && !result && (
+            {multiResults.length === 0 && !result && (
+              (activeTab === 'foto' && !image) ||
+              (activeTab === 'tasarim' && !designPrompt && !sketchImage) ||
+              (activeTab === 'rotush' && !retouchSource && !result)
+            ) && (
               <div className="text-center z-10 px-6">
                 <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 border border-zinc-700 flex items-center justify-center mx-auto mb-4 text-zinc-500 text-2xl">
                   {activeTab === 'foto' ? '📸' : activeTab === 'tasarim' ? '🎨' : '🪄'}
@@ -1021,7 +1230,7 @@ export default function WorkspacePage() {
               </div>
             )}
 
-            {multiResults.length === 0 && result && (
+            {multiResults.length === 0 && result && activeTab !== 'rotush' && (
               <div className="relative z-10 w-full h-full group p-4 flex items-center justify-center">
                 <img src={result} alt="Result" className="max-h-full object-contain rounded-xl shadow-2xl ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-[1.02]" />
                 

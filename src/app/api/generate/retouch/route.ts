@@ -16,6 +16,7 @@ const getKieKey = () => {
 
 type Payload = {
   sourceUrl: string;
+  maskUrl?: string;
   referenceUrl?: string;
   instruction?: string;
   region?: string;
@@ -39,15 +40,15 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as Payload;
-    const { sourceUrl, referenceUrl, instruction, region, color, aspectRatio } = body;
+    const { sourceUrl, maskUrl, referenceUrl, instruction, region, color, aspectRatio } = body;
 
     if (!sourceUrl) return NextResponse.json({ error: 'sourceUrl gerekli' }, { status: 400 });
-    if (!instruction && !referenceUrl && !color) {
-      return NextResponse.json({ error: 'Talimat, renk veya referans görselden en az biri gerekli' }, { status: 400 });
+    if (!instruction && !referenceUrl && !color && !maskUrl) {
+      return NextResponse.json({ error: 'Talimat, renk, referans veya maske gerekli' }, { status: 400 });
     }
 
     const maxBytes = parseInt(process.env.MAX_UPLOAD_BYTES || '8388608', 10);
-    for (const u of [sourceUrl, referenceUrl]) {
+    for (const u of [sourceUrl, referenceUrl, maskUrl]) {
       if (u?.startsWith('data:image')) {
         const v = validateImageDataUrl(u, maxBytes);
         if (!v.ok) return NextResponse.json({ error: v.reason }, { status: 400 });
@@ -56,20 +57,25 @@ export async function POST(request: Request) {
 
     const hostedSource = await ensureUrl(sourceUrl);
     const hostedRef = referenceUrl ? await ensureUrl(referenceUrl) : null;
+    const hostedMask = maskUrl ? await ensureUrl(maskUrl) : null;
     if (!hostedSource) return NextResponse.json({ error: 'Kaynak görsel yüklenemedi' }, { status: 500 });
 
     const regionTxt = region ? ` in the ${region}` : '';
     const colorTxt = color ? ` Apply the color ${color} (CSS/hex value).` : '';
     const refTxt = hostedRef
-      ? ' Use the SECOND reference image as the source of the new material/color/texture/pattern. Match its appearance precisely.'
+      ? ' Use the reference image (material/color/texture) as the source of the new appearance — match it precisely.'
+      : '';
+    const maskTxt = hostedMask
+      ? ' A binary MASK image is provided (white = edit region, black = keep unchanged). STRICTLY apply changes only inside the WHITE areas of the mask; outside the white mask the output must be pixel-identical to the source.'
       : '';
     const instr = instruction?.trim() ? `Targeted change: ${instruction.trim()}.` : 'Apply the requested change.';
 
     const prompt =
-      `${instr}${regionTxt}.${colorTxt}${refTxt} ` +
-      'CRITICAL: only modify the requested element/region. Preserve every other detail of the original shoe perfectly — silhouette, sole, stitching, eyelets, accessories outside the target area, lighting, background and composition must stay IDENTICAL to the first reference image. Output a photo-realistic image of the same shoe with the requested change applied.';
+      `${instr}${regionTxt}.${colorTxt}${refTxt}${maskTxt} ` +
+      'CRITICAL: only modify the requested element/region. Preserve every other detail of the original shoe perfectly — silhouette, sole, stitching, eyelets, accessories outside the target area, lighting, background and composition must stay IDENTICAL to the source image. Output a photo-realistic image of the same shoe with the requested change applied.';
 
-    const imageUrls = [hostedSource, hostedRef].filter((x): x is string => !!x);
+    // Sıra: [kaynak, maske, referans] — prompt'taki "MASK" / "reference image" sıralamasıyla eşleşir
+    const imageUrls = [hostedSource, hostedMask, hostedRef].filter((x): x is string => !!x);
 
     const input: Record<string, unknown> = {
       prompt,
@@ -78,6 +84,8 @@ export async function POST(request: Request) {
       image_url: hostedSource,
       aspect_ratio: aspectRatio || '1:1',
     };
+    // Bazı Kie modelleri ayrı mask_url alanını da destekliyor; varsa ekstradan veriyoruz
+    if (hostedMask) input.mask_url = hostedMask;
 
     const createRes = await axios.post(
       `${KIE_BASE}/api/v1/jobs/createTask`,
