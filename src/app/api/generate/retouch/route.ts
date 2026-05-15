@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { validateImageDataUrl } from '@/lib/validation';
 import { ensureUrl } from '@/lib/kieUpload';
 import { createClient } from '@/lib/supabase/server';
+import { deductCredits, refundCredits } from '@/lib/credits';
 
 export const maxDuration = 26;
 
@@ -87,15 +88,32 @@ export async function POST(request: Request) {
     // Bazı Kie modelleri ayrı mask_url alanını da destekliyor; varsa ekstradan veriyoruz
     if (hostedMask) input.mask_url = hostedMask;
 
-    const createRes = await axios.post(
-      `${KIE_BASE}/api/v1/jobs/createTask`,
-      { model: 'nano-banana-pro', input },
-      { headers: { Authorization: `Bearer ${getKieKey()}`, 'Content-Type': 'application/json' } }
-    );
-    const taskId = createRes.data?.data?.taskId;
-    if (!taskId) throw new Error('Could not get taskId');
+    const charge = await deductCredits(user.id, 'retouch');
+    if (!charge.ok) {
+      if (charge.error === 'insufficient') {
+        return NextResponse.json(
+          { error: 'Krediniz yetersiz. Fiyatlandırma sayfasından kredi yükleyin.', code: 'insufficient_credits', balance: charge.balance ?? 0 },
+          { status: 402 }
+        );
+      }
+      return NextResponse.json({ error: 'Kredi işlemi başarısız' }, { status: 500 });
+    }
 
-    return NextResponse.json({ taskId, stage: 'retouch' });
+    let taskId: string | undefined;
+    try {
+      const createRes = await axios.post(
+        `${KIE_BASE}/api/v1/jobs/createTask`,
+        { model: 'nano-banana-pro', input },
+        { headers: { Authorization: `Bearer ${getKieKey()}`, 'Content-Type': 'application/json' } }
+      );
+      taskId = createRes.data?.data?.taskId;
+      if (!taskId) throw new Error('Could not get taskId');
+    } catch (kieErr) {
+      await refundCredits(user.id, 'retouch');
+      throw kieErr;
+    }
+
+    return NextResponse.json({ taskId, stage: 'retouch', balance: charge.balance });
   } catch (error: unknown) {
     const e = error as { response?: { data?: { msg?: string } }; message?: string };
     const msg = e?.response?.data?.msg || e?.message || 'Rötuş Hatası';

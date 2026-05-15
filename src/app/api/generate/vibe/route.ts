@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { buildPrompt, buildPosePrompt, POSE_CATALOG } from '@/lib/promptBuilder';
 import { createClient } from '@/lib/supabase/server';
+import { deductCredits, refundCredits } from '@/lib/credits';
 
 export const maxDuration = 26;
 
@@ -78,15 +79,33 @@ export async function POST(request: Request) {
     if (isDesignMode) vibeInput.imageScale = 0.8;
     if (typeof seed === 'number') vibeInput.seed = seed;
 
-    const createRes = await axios.post(
-      `${KIE_BASE}/api/v1/jobs/createTask`,
-      { model: 'nano-banana-pro', input: vibeInput },
-      { headers: { Authorization: `Bearer ${getKieKey()}`, 'Content-Type': 'application/json' } }
-    );
-    const taskId = createRes.data?.data?.taskId;
-    if (!taskId) throw new Error('Could not get taskId');
+    // Her vibe/poz çağrısı 1 Kie üretimi = 1 kredi ('pose')
+    const charge = await deductCredits(user.id, 'pose');
+    if (!charge.ok) {
+      if (charge.error === 'insufficient') {
+        return NextResponse.json(
+          { error: 'Krediniz yetersiz. Fiyatlandırma sayfasından kredi yükleyin.', code: 'insufficient_credits', balance: charge.balance ?? 0 },
+          { status: 402 }
+        );
+      }
+      return NextResponse.json({ error: 'Kredi işlemi başarısız' }, { status: 500 });
+    }
 
-    return NextResponse.json({ taskId, stage: 'vibe', isDesignMode });
+    let taskId: string | undefined;
+    try {
+      const createRes = await axios.post(
+        `${KIE_BASE}/api/v1/jobs/createTask`,
+        { model: 'nano-banana-pro', input: vibeInput },
+        { headers: { Authorization: `Bearer ${getKieKey()}`, 'Content-Type': 'application/json' } }
+      );
+      taskId = createRes.data?.data?.taskId;
+      if (!taskId) throw new Error('Could not get taskId');
+    } catch (kieErr) {
+      await refundCredits(user.id, 'pose');
+      throw kieErr;
+    }
+
+    return NextResponse.json({ taskId, stage: 'vibe', isDesignMode, balance: charge.balance });
   } catch (error: unknown) {
     const e = error as { response?: { data?: { msg?: string } }; message?: string };
     const msg = e?.response?.data?.msg || e?.message || 'Vibe Üretim Hatası';

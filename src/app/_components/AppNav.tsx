@@ -15,10 +15,28 @@ export default function AppNav() {
   const router = useRouter();
   const supabase = React.useMemo(() => createClient(), []);
   const [email, setEmail] = useState<string | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
+
+  const refreshCredits = React.useCallback(() => {
+    fetch('/api/credits/balance')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && typeof d.credits === 'number') setCredits(d.credits); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-  }, [supabase]);
+    refreshCredits();
+    const h = () => refreshCredits();
+    window.addEventListener('credits:refresh', h);
+    window.addEventListener('focus', h);
+    const iv = setInterval(refreshCredits, 20000); // üretim bitince ~20sn içinde güncellenir
+    return () => {
+      window.removeEventListener('credits:refresh', h);
+      window.removeEventListener('focus', h);
+      clearInterval(iv);
+    };
+  }, [supabase, refreshCredits]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -53,6 +71,15 @@ export default function AppNav() {
         </div>
       </div>
       <div className="flex items-center gap-4 text-sm">
+        <Link
+          href="/pricing"
+          className="px-3 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/25 transition text-xs font-medium flex items-center gap-1.5"
+          title="Kredi satın al"
+        >
+          <span className="text-indigo-300">◆</span>
+          {credits !== null ? `${credits} kredi` : 'Kredi'}
+          <span className="text-indigo-400/70 hidden sm:inline">· Yükle</span>
+        </Link>
         {email && <span className="text-zinc-500 text-xs hidden md:inline" title={email}>{email}</span>}
         <button onClick={signOut} className="text-zinc-400 hover:text-white transition" title="Çıkış">Çıkış</button>
         <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-300">

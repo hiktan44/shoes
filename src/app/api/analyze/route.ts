@@ -5,6 +5,7 @@ import { validateImageDataUrl } from '@/lib/validation';
 import { ensureUrl } from '@/lib/kieUpload';
 import { EXPERT_PERSONA } from '@/lib/promptBuilder';
 import { createClient } from '@/lib/supabase/server';
+import { deductCredits, refundCredits } from '@/lib/credits';
 
 // Coolify'da function timeout yok, fakat Next.js / Node default body okuma sınırları geçerli
 export const maxDuration = 120;
@@ -274,6 +275,18 @@ export async function POST(request: Request) {
     const hostedUrl = imageUrl.startsWith('data:') ? await ensureUrl(imageUrl) : imageUrl;
     if (!hostedUrl) return NextResponse.json({ error: 'Görsel yüklenemedi' }, { status: 500 });
 
+    // Analiz = 1 kredi
+    const charge = await deductCredits(user.id, 'analyze');
+    if (!charge.ok) {
+      if (charge.error === 'insufficient') {
+        return NextResponse.json(
+          { error: 'Krediniz yetersiz. Fiyatlandırma sayfasından kredi yükleyin.', code: 'insufficient_credits', balance: charge.balance ?? 0 },
+          { status: 402 }
+        );
+      }
+      return NextResponse.json({ error: 'Kredi işlemi başarısız' }, { status: 500 });
+    }
+
     let provider: 'openrouter' | 'openai' | 'gemini' | null = null;
     let result: AnalyzeResult | null = null;
     const errors: string[] = [];
@@ -309,13 +322,14 @@ export async function POST(request: Request) {
     }
 
     if (!result) {
+      await refundCredits(user.id, 'analyze'); // hiçbir sağlayıcı başaramadı → krediyi iade et
       const msg = errors.length
         ? errors.join(' | ')
         : 'Hiçbir LLM sağlayıcısı yapılandırılmamış (OPENROUTER_API_KEY, OPENAI_API_KEY veya GEMINI_API_KEY gerekli)';
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    return NextResponse.json({ provider, result });
+    return NextResponse.json({ provider, result, balance: charge.balance });
   } catch (error: unknown) {
     const e = error as { response?: { data?: unknown }; message?: string };
     const msg = e?.message || 'Analiz Hatası';
