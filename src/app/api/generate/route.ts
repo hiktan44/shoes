@@ -17,6 +17,7 @@ const getKieKey = () => {
 
 type References = {
   sketch?: string;
+  sole?: string;
   leather?: string;
   accessory?: string;
   secondary?: string;
@@ -36,9 +37,10 @@ type GeneratePayload = {
 function buildReferenceHints(refs?: References): string {
   if (!refs) return '';
   const parts: string[] = [];
-  if (refs.leather) parts.push('apply the material/texture from the second reference image to the upper');
-  if (refs.accessory) parts.push('integrate the buckle/accessory style from the next reference image');
-  if (refs.secondary) parts.push('use the lace/secondary panel color from the final reference image');
+  if (refs.sole) parts.push('replicate the sole/outsole tread pattern, height, color and rubber texture from the sole reference image exactly');
+  if (refs.leather) parts.push('apply the material/texture from the upper-material reference image to the upper');
+  if (refs.accessory) parts.push('integrate the buckle/accessory style from the accessory reference image');
+  if (refs.secondary) parts.push('use the lace/secondary panel color from the secondary reference image');
   return parts.length ? `Reference guidance: ${parts.join('; ')}.` : '';
 }
 
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
     const dataUrls: string[] = [];
     if (imageUrl?.startsWith('data:image')) dataUrls.push(imageUrl);
     if (references) {
-      for (const v of [references.sketch, references.leather, references.accessory, references.secondary]) {
+      for (const v of [references.sketch, references.sole, references.leather, references.accessory, references.secondary]) {
         if (v?.startsWith('data:image')) dataUrls.push(v);
       }
     }
@@ -84,6 +86,7 @@ export async function POST(request: Request) {
     const primaryUrl = await ensureUrl(imageUrl);
     const refUrls = await Promise.all([
       ensureUrl(references?.sketch),
+      ensureUrl(references?.sole),
       ensureUrl(references?.leather),
       ensureUrl(references?.accessory),
       ensureUrl(references?.secondary),

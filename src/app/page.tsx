@@ -35,6 +35,7 @@ export default function WorkspacePage() {
   const [leatherImage, setLeatherImage] = useState<string | null>(null);
   const [accessoryImage, setAccessoryImage] = useState<string | null>(null);
   const [secondaryImage, setSecondaryImage] = useState<string | null>(null);
+  const [soleImage, setSoleImage] = useState<string | null>(null);
 
   // Global State
   const [loading, setLoading] = useState(false);
@@ -202,6 +203,7 @@ export default function WorkspacePage() {
   const leatherRef = useRef<HTMLInputElement>(null);
   const accessoryRef = useRef<HTMLInputElement>(null);
   const secondaryRef = useRef<HTMLInputElement>(null);
+  const soleRef = useRef<HTMLInputElement>(null);
 
   const MAX_BYTES = 8 * 1024 * 1024;
   const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp'];
@@ -257,7 +259,7 @@ export default function WorkspacePage() {
         material: string;
         prompt?: string;
         imageUrl: string | null;
-        references?: { sketch?: string; leather?: string; accessory?: string; secondary?: string };
+        references?: { sketch?: string; sole?: string; leather?: string; accessory?: string; secondary?: string };
         aspectRatio: string;
         preserveForm: boolean;
         preserveDetails: boolean;
@@ -267,7 +269,7 @@ export default function WorkspacePage() {
         shoeType: selectedType,
         material: 'premium material',
         prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-        imageUrl: activeTab === 'foto' ? image : (sketchImage || leatherImage || accessoryImage || secondaryImage),
+        imageUrl: activeTab === 'foto' ? image : (sketchImage || soleImage || leatherImage || accessoryImage || secondaryImage),
         aspectRatio,
         preserveForm,
         preserveDetails,
@@ -277,6 +279,7 @@ export default function WorkspacePage() {
       if (activeTab === 'tasarim') {
         payload.references = {
           sketch: sketchImage || undefined,
+          sole: soleImage || undefined,
           leather: leatherImage || undefined,
           accessory: accessoryImage || undefined,
           secondary: secondaryImage || undefined,
@@ -607,8 +610,22 @@ export default function WorkspacePage() {
                   </div>
 
                   <div className="col-span-2">
+                    <h3 className="text-xs font-medium text-zinc-400 mb-2 uppercase tracking-wide flex items-center justify-between">
+                      <span>Taban / Sole</span>
+                      {soleImage && <button onClick={(e) => { e.stopPropagation(); setSoleImage(null); }} className="text-[10px] text-red-400 hover:text-red-300 normal-case">Temizle</button>}
+                    </h3>
+                    <div
+                      className="h-16 border border-dashed border-zinc-700 rounded-lg flex items-center justify-center cursor-pointer hover:bg-zinc-800 overflow-hidden relative"
+                      onClick={() => soleRef.current?.click()}
+                    >
+                      {soleImage ? <img src={soleImage} alt="Sole" className="w-full h-full object-cover opacity-60 hover:opacity-100" /> : <span className="text-xs text-zinc-500">+ Taban deseni / yüksekliği / kauçuk dokusu</span>}
+                      <input type="file" ref={soleRef} className="hidden" accept="image/*" onChange={e => handleFile(e, setSoleImage)} />
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
                     <h3 className="text-xs font-medium text-zinc-400 mb-2 uppercase tracking-wide">İkinci Kaplama / Bağcık Rengi</h3>
-                    <div 
+                    <div
                       className="h-12 border border-dashed border-zinc-700 rounded-lg flex items-center justify-center cursor-pointer hover:bg-zinc-800 overflow-hidden relative"
                       onClick={() => secondaryRef.current?.click()}
                     >
