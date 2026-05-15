@@ -64,8 +64,13 @@ async function callOpenRouter(imageUrl: string, language: 'tr' | 'en', shoeType?
 
   const primary = process.env.OPENROUTER_MODEL || 'openai/gpt-5.5';
   const fallback = process.env.OPENROUTER_FALLBACK_MODEL || 'google/gemini-3.1-pro-preview';
+  // Ek hızlı/ucuz Gemini seçenekleri — pahalı modeller fail ederse devreye girer
+  const extras = [
+    'google/gemini-3.1-flash-lite',
+    'google/gemini-3.1-flash-preview',
+  ];
   const safety = ['openai/gpt-4o', 'google/gemini-2.5-pro'];
-  const chain = [primary, fallback, ...safety];
+  const chain = [primary, fallback, ...extras, ...safety];
 
   let lastErr: unknown = null;
   const tried = new Set<string>();
