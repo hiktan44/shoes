@@ -44,6 +44,11 @@ export default function WorkspacePage() {
   const [retouchRegion, setRetouchRegion] = useState<string>('');
   const [retouchColor, setRetouchColor] = useState('');
   const [retouchResult, setRetouchResult] = useState<string | null>(null);
+  // Geri/İleri için rötuş history
+  const [retouchHistory, setRetouchHistory] = useState<string[]>([]);
+  const [retouchHistoryIndex, setRetouchHistoryIndex] = useState<number>(-1);
+  // İlk rötuş anındaki orijinal kaynağı sabitler → Geri ile en başa dönüldüğünde restore edilir
+  const [retouchOriginalSrc, setRetouchOriginalSrc] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(48);
   const [hasMask, setHasMask] = useState(false);
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);   // saf maske (siyah/beyaz) — API'ye gider
@@ -466,11 +471,14 @@ export default function WorkspacePage() {
     setHasMask(false);
   }, []);
 
-  // Kaynak görseli canvas'a yükle (her source/result değişiminde tetiklenir)
+  // Kaynak görseli canvas'a yükle (source/result/retouchResult değişiminde tetiklenir)
+  // retouchResult'ı deps'e ekledik: sonuçtan canvas'a dönerken canvas re-mount oluyor — yeniden çizmemiz gerek
   useEffect(() => {
     if (activeTab !== 'rotush') return;
+    if (retouchResult) return; // sonuç görüntüleniyorsa canvas paint etme
     const src = retouchSource || result;
     if (!src) return;
+    // Canvas refs yeni mount edildiyse bir tick bekle (React DOM commit sonrası)
     const display = displayCanvasRef.current;
     const mask = maskCanvasRef.current;
     if (!display || !mask) return;
@@ -507,7 +515,7 @@ export default function WorkspacePage() {
       }).catch(() => undefined);
     };
     img.src = src;
-  }, [activeTab, retouchSource, result]);
+  }, [activeTab, retouchSource, result, retouchResult]);
 
   // Fırça vuruşu — hem maske hem display canvas'ına yazar
   const paintAt = (clientX: number, clientY: number) => {
@@ -566,6 +574,33 @@ export default function WorkspacePage() {
     try { (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId); } catch {}
   };
 
+  const retouchGoBack = () => {
+    if (retouchHistoryIndex <= -1) return;
+    const newIdx = retouchHistoryIndex - 1;
+    setRetouchHistoryIndex(newIdx);
+    if (newIdx < 0) {
+      // En başa döndük → orijinal kaynağa
+      setRetouchResult(null);
+      setHasMask(false);
+      if (retouchOriginalSrc) {
+        setRetouchSource(retouchOriginalSrc);
+        setResult(retouchOriginalSrc);
+      }
+    } else {
+      setRetouchResult(retouchHistory[newIdx]);
+      setResult(retouchHistory[newIdx]);
+    }
+  };
+
+  const retouchGoForward = () => {
+    if (retouchHistoryIndex >= retouchHistory.length - 1) return;
+    const newIdx = retouchHistoryIndex + 1;
+    setRetouchHistoryIndex(newIdx);
+    setRetouchResult(retouchHistory[newIdx]);
+    setResult(retouchHistory[newIdx]);
+    setHasMask(false);
+  };
+
   const exportMaskDataUrl = (): string | null => {
     if (!hasMask) return null;
     const m = maskCanvasRef.current;
@@ -583,6 +618,8 @@ export default function WorkspacePage() {
       setError('Talimat, renk veya referans görselden en az birini ver');
       return;
     }
+    // İlk rötuş ise orijinali sabitle
+    if (!retouchOriginalSrc) setRetouchOriginalSrc(source);
     setLoading(true);
     setError(null);
     setRetouchResult(null);
@@ -627,6 +664,13 @@ export default function WorkspacePage() {
       const url = await pollTask(d.taskId);
       setRetouchResult(url);
       setResult(url); // ana önizlemeyi de güncelle
+
+      // History'ye ekle (eğer ortadaysak sonrasını kes, sonra push et)
+      setRetouchHistory(prev => {
+        const truncated = retouchHistoryIndex >= 0 ? prev.slice(0, retouchHistoryIndex + 1) : prev;
+        return [...truncated, url];
+      });
+      setRetouchHistoryIndex(prev => (prev < 0 ? 0 : prev + 1));
 
       // Persist
       const saveRes = await fetch('/api/generate/save', {
@@ -1059,21 +1103,71 @@ export default function WorkspacePage() {
 
             {/* RÖTUŞ SONUCU */}
             {activeTab === 'rotush' && retouchResult && !loading && (
-              <div className="relative z-10 w-full h-full group p-4 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={retouchResult} alt="Retouch Result" className="max-h-full object-contain rounded-xl shadow-2xl ring-1 ring-cyan-500/20" />
-                <div className="absolute bottom-8 flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => { setRetouchResult(null); setHasMask(false); }} className="px-5 py-2.5 bg-zinc-900/90 hover:bg-zinc-800 backdrop-blur border border-zinc-600 rounded-xl text-sm font-medium text-white shadow-xl">
-                    Yeni Rötuş
-                  </button>
-                  <button onClick={() => { setRetouchSource(retouchResult); setRetouchResult(null); setHasMask(false); }} className="px-5 py-2.5 bg-cyan-700/90 hover:bg-cyan-600 backdrop-blur border border-cyan-400/50 rounded-xl text-sm font-medium text-white shadow-xl">
-                    Bunun Üzerine Rötuş
-                  </button>
-                  <button onClick={() => downloadImage(retouchResult)} className="px-5 py-2.5 bg-indigo-600/90 hover:bg-indigo-500 backdrop-blur border border-indigo-400/50 rounded-xl text-sm font-medium text-white shadow-xl flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    İndir
-                  </button>
+              <div className="relative z-10 w-full h-full p-4 flex flex-col">
+                {/* Üst Toolbar — Geri / İleri / Sayaç */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800/60">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={retouchGoBack}
+                      disabled={retouchHistoryIndex < 0}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      title="Geri"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                      Geri
+                    </button>
+                    <button
+                      onClick={retouchGoForward}
+                      disabled={retouchHistoryIndex >= retouchHistory.length - 1}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      title="İleri"
+                    >
+                      İleri
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                    {retouchHistory.length > 0 && (
+                      <span className="text-[11px] text-zinc-500 ml-2">
+                        Adım {retouchHistoryIndex + 1} / {retouchHistory.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => downloadImage(retouchResult)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-400/50 flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      İndir
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Mevcut sonucu yeni kaynak yap, canvas'a dön. History korunur.
+                        if (retouchResult) setRetouchSource(retouchResult);
+                        setRetouchResult(null);
+                        setHasMask(false);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-400/50"
+                      title="Bu sonucun üzerine yeni rötuş yap (canvas'a dön, history korunur)"
+                    >
+                      Bu Sonuçtan Devam
+                    </button>
+                  </div>
                 </div>
+
+                {/* Sonuç Görseli */}
+                <div className="flex-1 flex items-center justify-center overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={retouchResult}
+                    alt="Retouch Result"
+                    className="max-h-full max-w-full object-contain rounded-xl shadow-2xl ring-1 ring-cyan-500/20 cursor-pointer"
+                    onClick={() => setIsZoomed(true)}
+                  />
+                </div>
+
+                <p className="text-[11px] text-zinc-500 text-center mt-2">
+                  &quot;Devam Et&quot; → bu görselin üzerine yeni rötuş · &quot;Geri/İleri&quot; → adımlar arasında gezin · Resme tıkla → büyüt
+                </p>
               </div>
             )}
 
