@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import AppNav from './_components/AppNav';
 import PoseGrid, { POSE_LIST } from './_components/PoseGrid';
 
-type HistoryItem = { id: string; url: string; mode: 'foto' | 'tasarim'; vibe: string | null; ts: number };
+type HistoryItem = { id: string; url: string; mode: 'foto' | 'tasarim' | 'rotush'; vibe: string | null; ts: number };
 const HISTORY_MAX = 24;
 
 const SHOE_TYPES = ['Genel Ayakkabı', 'Sneaker', 'Boots', 'Heels', 'Loafers', 'Sandals', 'Kids Shoes'];
@@ -21,8 +21,29 @@ const SCENES = [
 type MultiPoseResult = { poseId: string; state: 'pending' | 'success' | 'failed'; url?: string; error?: string };
 const POSE_CATALOG = POSE_LIST;
 
+const RETOUCH_REGIONS = [
+  { id: 'laces', label: 'Bağcık' },
+  { id: 'upper', label: 'Üst kısım' },
+  { id: 'toe cap', label: 'Burun (toe cap)' },
+  { id: 'heel counter', label: 'Topuk' },
+  { id: 'tongue', label: 'Dil' },
+  { id: 'outsole', label: 'Taban' },
+  { id: 'midsole', label: 'Orta taban' },
+  { id: 'lining', label: 'Astar' },
+  { id: 'buckle/accessory', label: 'Toka / Aksesuar' },
+  { id: 'logo/branding', label: 'Logo / Marka' },
+];
+
 export default function WorkspacePage() {
-  const [activeTab, setActiveTab] = useState<'foto' | 'tasarim'>('foto');
+  const [activeTab, setActiveTab] = useState<'foto' | 'tasarim' | 'rotush'>('foto');
+
+  // Rötuş state
+  const [retouchSource, setRetouchSource] = useState<string | null>(null);
+  const [retouchReference, setRetouchReference] = useState<string | null>(null);
+  const [retouchInstruction, setRetouchInstruction] = useState('');
+  const [retouchRegion, setRetouchRegion] = useState<string>('');
+  const [retouchColor, setRetouchColor] = useState('');
+  const [retouchResult, setRetouchResult] = useState<string | null>(null);
   
   // Foto State
   const [image, setImage] = useState<string | null>(null);
@@ -172,7 +193,7 @@ export default function WorkspacePage() {
     setHistory(data.map(d => ({
       id: d.id,
       url: d.result_url,
-      mode: d.mode as 'foto' | 'tasarim',
+      mode: d.mode as 'foto' | 'tasarim' | 'rotush',
       vibe: d.vibe,
       ts: new Date(d.created_at).getTime(),
     })));
@@ -204,6 +225,8 @@ export default function WorkspacePage() {
   const accessoryRef = useRef<HTMLInputElement>(null);
   const secondaryRef = useRef<HTMLInputElement>(null);
   const soleRef = useRef<HTMLInputElement>(null);
+  const retouchSourceRef = useRef<HTMLInputElement>(null);
+  const retouchReferenceRef = useRef<HTMLInputElement>(null);
 
   const MAX_BYTES = 8 * 1024 * 1024;
   const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp'];
@@ -415,6 +438,80 @@ export default function WorkspacePage() {
     }
   };
 
+  const handleRetouch = async () => {
+    const source = retouchSource || result;
+    if (!source) {
+      setError('Önce kaynak görsel seç (yükle veya son sonucu kullan)');
+      return;
+    }
+    if (!retouchInstruction.trim() && !retouchReference && !retouchColor) {
+      setError('Talimat, renk veya referans görselden en az birini ver');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setRetouchResult(null);
+    try {
+      const safeJson = async (r: Response) => {
+        const txt = await r.text();
+        try { return JSON.parse(txt); }
+        catch { throw new Error(`Sunucu yanıtı geçersiz (${r.status})`); }
+      };
+      const pollTask = async (taskId: string, totalMs = 240_000): Promise<string> => {
+        const start = Date.now();
+        let delay = 2000;
+        while (Date.now() - start < totalMs) {
+          await new Promise(r => setTimeout(r, delay));
+          const sr = await fetch(`/api/generate/status?taskId=${encodeURIComponent(taskId)}`);
+          const sd = await safeJson(sr);
+          if (!sr.ok) throw new Error(sd.error || 'Status hatası');
+          if (sd.state === 'success') return sd.resultUrl as string;
+          if (sd.state === 'failed') throw new Error(sd.error || 'Rötuş başarısız');
+          delay = Math.min(Math.floor(delay * 1.3), 5000);
+        }
+        throw new Error('Rötuş zaman aşımına uğradı');
+      };
+
+      const r = await fetch('/api/generate/retouch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceUrl: source,
+          referenceUrl: retouchReference || undefined,
+          instruction: retouchInstruction || undefined,
+          region: retouchRegion || undefined,
+          color: retouchColor || undefined,
+          aspectRatio,
+        }),
+      });
+      const d = await safeJson(r);
+      if (!r.ok) throw new Error(d.error || 'Rötuş başlatma hatası');
+
+      const url = await pollTask(d.taskId);
+      setRetouchResult(url);
+      setResult(url); // ana önizlemeyi de güncelle
+
+      // Persist
+      const saveRes = await fetch('/api/generate/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resultUrl: url,
+          mode: 'foto',
+          vibe: 'Rötuş',
+          shoeType: selectedType,
+          aspectRatio,
+        }),
+      });
+      const sd = await safeJson(saveRes).catch(() => ({}));
+      if (sd?.generation) pushHistory(url, sd.generation);
+    } catch (e) {
+      setError((e as Error).message || 'Rötuş hatası');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const downloadImage = async (url: string) => {
     try {
       const response = await fetch(url);
@@ -456,22 +553,141 @@ export default function WorkspacePage() {
           <div className="lg:col-span-3 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
             
             {/* Tabs */}
-            <div className="flex gap-2 bg-zinc-900/50 p-1.5 rounded-xl border border-zinc-800/80">
-              <button 
+            <div className="flex gap-1.5 bg-zinc-900/50 p-1.5 rounded-xl border border-zinc-800/80">
+              <button
                 onClick={() => setActiveTab('foto')}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${activeTab === 'foto' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                className={`flex-1 py-2 text-xs font-medium rounded-lg transition ${activeTab === 'foto' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
               >
-                Fotoğraf Çekimi
+                Fotoğraf
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('tasarim')}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${activeTab === 'tasarim' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400 hover:text-zinc-200'}`}
+                className={`flex-1 py-2 text-xs font-medium rounded-lg transition ${activeTab === 'tasarim' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400 hover:text-zinc-200'}`}
               >
                 AI Tasarım
               </button>
+              <button
+                onClick={() => setActiveTab('rotush')}
+                className={`flex-1 py-2 text-xs font-medium rounded-lg transition ${activeTab === 'rotush' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                Rötuş
+              </button>
             </div>
 
-            {activeTab === 'foto' ? (
+            {activeTab === 'rotush' ? (
+              <div className="flex flex-col gap-4">
+                {/* Kaynak Görsel */}
+                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
+                  <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center justify-between">
+                    Kaynak Görsel
+                    {(retouchSource || result) && <button onClick={() => setRetouchSource(null)} className="text-xs text-red-400 hover:text-red-300">Temizle</button>}
+                  </h3>
+                  <div
+                    className={`relative group flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                      (retouchSource || result) ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
+                    }`}
+                    onClick={() => retouchSourceRef.current?.click()}
+                  >
+                    {(retouchSource || result) ? (
+                      <div className="absolute inset-0 p-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={(retouchSource || result) as string} alt="Source" className="w-full h-full object-contain rounded-lg" />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-400 px-4 text-center">Düzenlenecek ayakkabı görselini yükle</span>
+                    )}
+                    <input type="file" ref={retouchSourceRef} className="hidden" accept="image/*" onChange={e => handleFile(e, setRetouchSource)} />
+                  </div>
+                  {result && !retouchSource && (
+                    <p className="mt-2 text-[10px] text-cyan-400/70">↑ Son üretilen sonuç otomatik seçildi. Farklı bir görsel istersen yükle.</p>
+                  )}
+                </div>
+
+                {/* Bölge */}
+                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
+                  <h3 className="text-sm font-medium text-zinc-300 mb-2 flex items-center justify-between">
+                    Hedef Bölge <span className="text-[10px] text-zinc-500 normal-case">opsiyonel</span>
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {RETOUCH_REGIONS.map(r => (
+                      <button
+                        key={r.id}
+                        onClick={() => setRetouchRegion(retouchRegion === r.id ? '' : r.id)}
+                        className={`px-2.5 py-1 text-[11px] rounded-md border transition ${
+                          retouchRegion === r.id
+                            ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/50'
+                            : 'bg-zinc-800/40 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Renk + Talimat */}
+                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-zinc-300 mb-2 flex items-center justify-between">
+                      Renk <span className="text-[10px] text-zinc-500 normal-case">opsiyonel</span>
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={retouchColor || '#000000'}
+                        onChange={e => setRetouchColor(e.target.value)}
+                        className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border border-zinc-700"
+                      />
+                      <input
+                        type="text"
+                        value={retouchColor}
+                        onChange={e => setRetouchColor(e.target.value)}
+                        placeholder="#ff3366 veya 'kırmızı'"
+                        className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded-lg p-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500"
+                      />
+                      {retouchColor && (
+                        <button onClick={() => setRetouchColor('')} className="text-xs text-zinc-500 hover:text-red-300">✕</button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Talimat</h3>
+                    <textarea
+                      placeholder="Örn: bağcıkları kırmızıya çevir, tabanı daha kalın yap, toka altın renge dönsün..."
+                      className="w-full h-20 bg-zinc-950/50 border border-zinc-700 rounded-lg p-2.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500 resize-none"
+                      value={retouchInstruction}
+                      onChange={e => setRetouchInstruction(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Referans görsel */}
+                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
+                  <h3 className="text-sm font-medium text-zinc-300 mb-2 flex items-center justify-between">
+                    Referans Görsel <span className="text-[10px] text-zinc-500 normal-case">opsiyonel</span>
+                    {retouchReference && <button onClick={() => setRetouchReference(null)} className="text-xs text-red-400 hover:text-red-300">Temizle</button>}
+                  </h3>
+                  <p className="text-[10px] text-zinc-500 mb-2">Yeni materyal / renk / desen örneği — model bu görselden öğrenir.</p>
+                  <div
+                    className={`relative group flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                      retouchReference ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
+                    }`}
+                    onClick={() => retouchReferenceRef.current?.click()}
+                  >
+                    {retouchReference ? (
+                      <div className="absolute inset-0 p-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={retouchReference} alt="Reference" className="w-full h-full object-contain rounded-lg" />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-500 px-4 text-center">Materyal / renk / desen örneği</span>
+                    )}
+                    <input type="file" ref={retouchReferenceRef} className="hidden" accept="image/*" onChange={e => handleFile(e, setRetouchReference)} />
+                  </div>
+                </div>
+              </div>
+            ) : activeTab === 'foto' ? (
               <>
                 {/* Upload Area for Photo Mode */}
                 <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
@@ -735,18 +951,20 @@ export default function WorkspacePage() {
             )}
 
             {/* Boş Ekran */}
-            {multiResults.length === 0 && ((activeTab === 'foto' && !image) || (activeTab === 'tasarim' && !designPrompt && !sketchImage)) && !result && (
+            {multiResults.length === 0 && ((activeTab === 'foto' && !image) || (activeTab === 'tasarim' && !designPrompt && !sketchImage) || (activeTab === 'rotush' && !retouchSource && !result)) && !result && (
               <div className="text-center z-10 px-6">
                 <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 border border-zinc-700 flex items-center justify-center mx-auto mb-4 text-zinc-500 text-2xl">
-                  {activeTab === 'foto' ? '📸' : '🎨'}
+                  {activeTab === 'foto' ? '📸' : activeTab === 'tasarim' ? '🎨' : '🪄'}
                 </div>
                 <h2 className="text-xl font-semibold text-zinc-300 mb-2">
-                  {activeTab === 'foto' ? "Satışa Hazır Görseller Üretin" : "Kendi Modelinizi Tasarlayın"}
+                  {activeTab === 'foto' ? "Satışa Hazır Görseller Üretin" : activeTab === 'tasarim' ? "Kendi Modelinizi Tasarlayın" : "Hedefli Rötuş"}
                 </h2>
                 <p className="text-zinc-500 text-sm max-w-sm mx-auto">
-                  {activeTab === 'foto' 
+                  {activeTab === 'foto'
                     ? "Amatör fotoğrafları profesyonel stüdyo ve yaşam tarzı e-ticaret karelerine dönüştürün."
-                    : "Sınıfının en iyisi yapay zeka ile doku, renk ve çizim referanslarını kullanarak sıfırdan model tasarlayın."}
+                    : activeTab === 'tasarim'
+                      ? "Sınıfının en iyisi yapay zeka ile doku, renk ve çizim referanslarını kullanarak sıfırdan model tasarlayın."
+                      : "Mevcut ayakkabıdaki tek bir bölgeyi (bağcık, taban, toka...) renk/talimat/referans ile değiştir, gerisi aynı kalsın."}
                 </p>
               </div>
             )}
@@ -878,25 +1096,45 @@ export default function WorkspacePage() {
               </div>
             )}
 
-            <button
-              onClick={handleGenerate}
-              disabled={loading || (activeTab === 'foto' ? !image : (!designPrompt && !sketchImage))}
-              className={`w-full p-4 rounded-xl font-semibold text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-2 ${
-                (activeTab === 'foto' ? !image : (!designPrompt && !sketchImage))
-                  ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700/50' 
-                  : loading 
-                    ? 'bg-indigo-600/50 text-indigo-300 border border-indigo-500/30' 
-                    : 'bg-zinc-100 hover:bg-white text-zinc-900 border border-white hover:scale-[1.02]'
-              }`}
-            >
-              {loading ? 'İşleniyor...' : selectedPoses.length > 0 ? (
-                <>{selectedPoses.length} Poz Üret ({selectedPoses.length} Kredi)</>
-              ) : (
-                <>
-                   {activeTab === 'foto' ? 'Stüdyo Çekimi Üret (1 Kredi)' : 'Sıfırdan Tasarım Üret (2 Kredi)'}
-                </>
-              )}
-            </button>
+            {activeTab === 'rotush' ? (
+              <button
+                onClick={handleRetouch}
+                disabled={
+                  loading ||
+                  (!(retouchSource || result)) ||
+                  (!retouchInstruction.trim() && !retouchReference && !retouchColor)
+                }
+                className={`w-full p-4 rounded-xl font-semibold text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-2 ${
+                  !(retouchSource || result) || (!retouchInstruction.trim() && !retouchReference && !retouchColor)
+                    ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700/50'
+                    : loading
+                      ? 'bg-cyan-600/50 text-cyan-200 border border-cyan-500/30'
+                      : 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900 border border-cyan-300 hover:scale-[1.02]'
+                }`}
+              >
+                {loading ? 'Rötuş Uygulanıyor...' : 'Rötuş Uygula (1 Kredi)'}
+              </button>
+            ) : (
+              <button
+                onClick={handleGenerate}
+                disabled={loading || (activeTab === 'foto' ? !image : (!designPrompt && !sketchImage))}
+                className={`w-full p-4 rounded-xl font-semibold text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-2 ${
+                  (activeTab === 'foto' ? !image : (!designPrompt && !sketchImage))
+                    ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700/50'
+                    : loading
+                      ? 'bg-indigo-600/50 text-indigo-300 border border-indigo-500/30'
+                      : 'bg-zinc-100 hover:bg-white text-zinc-900 border border-white hover:scale-[1.02]'
+                }`}
+              >
+                {loading ? 'İşleniyor...' : selectedPoses.length > 0 ? (
+                  <>{selectedPoses.length} Poz Üret ({selectedPoses.length} Kredi)</>
+                ) : (
+                  <>
+                     {activeTab === 'foto' ? 'Stüdyo Çekimi Üret (1 Kredi)' : 'Sıfırdan Tasarım Üret (2 Kredi)'}
+                  </>
+                )}
+              </button>
+            )}
 
           </div>
         </div>
