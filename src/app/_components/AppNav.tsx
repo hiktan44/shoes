@@ -16,6 +16,7 @@ export default function AppNav() {
   const supabase = React.useMemo(() => createClient(), []);
   const [email, setEmail] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const refreshCredits = React.useCallback(() => {
     fetch('/api/credits/balance')
@@ -26,6 +27,7 @@ export default function AppNav() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    fetch('/api/admin/check').then(r => r.ok ? r.json() : null).then(d => setIsAdmin(!!d?.admin)).catch(() => {});
     refreshCredits();
     const h = () => refreshCredits();
     window.addEventListener('credits:refresh', h);
@@ -80,6 +82,11 @@ export default function AppNav() {
           {credits !== null ? `${credits} kredi` : 'Kredi'}
           <span className="text-indigo-400/70 hidden sm:inline">· Yükle</span>
         </Link>
+        {isAdmin && (
+          <Link href="/admin" className="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25 transition text-xs font-medium">
+            🛡️ Admin
+          </Link>
+        )}
         {email && <span className="text-zinc-500 text-xs hidden md:inline" title={email}>{email}</span>}
         <button onClick={signOut} className="text-zinc-400 hover:text-white transition" title="Çıkış">Çıkış</button>
         <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-300">
