@@ -21,20 +21,46 @@ function LoginForm() {
     setError(null);
     setInfo(null);
     const supabase = createClient();
-    const { error } = mode === 'signin'
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password });
-    setLoading(false);
+
+    if (mode === 'signin') {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) { setError(error.message); return; }
+      router.push(next);
+      router.refresh();
+      return;
+    }
+
+    // SIGNUP
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) {
-      setError(error.message);
+      setLoading(false);
+      // Rate limit'e özel, anlaşılır mesaj
+      if (/rate limit/i.test(error.message)) {
+        setError('E-posta gönderim limiti doldu. Yönetici e-posta onayını kapatmalı (Supabase → Authentication → Confirm email) ya da birkaç dakika sonra tekrar dene.');
+      } else {
+        setError(error.message);
+      }
       return;
     }
-    if (mode === 'signup') {
-      setInfo('Hesap oluşturuldu. E-posta doğrulaması açıksa kutunu kontrol et.');
+
+    // Onay KAPALI ise signUp doğrudan session döndürür → direkt içeri al
+    if (data.session) {
+      setLoading(false);
+      router.push(next);
+      router.refresh();
       return;
     }
-    router.push(next);
-    router.refresh();
+
+    // Onay AÇIK ise: otomatik signin dene (onay kapalıysa zaten girer; açıksa nazikçe bilgilendir)
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (!signInErr) {
+      router.push(next);
+      router.refresh();
+      return;
+    }
+    setInfo('Hesap oluşturuldu. E-posta onayı açık görünüyor — gelen kutunu kontrol et veya yönetici onayı kapatınca tekrar giriş yap.');
   };
 
   return (
