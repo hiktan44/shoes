@@ -34,14 +34,36 @@ type GeneratePayload = {
   pairMode?: 'auto' | 'off';
 };
 
-function buildReferenceHints(refs?: References): string {
-  if (!refs) return '';
-  const parts: string[] = [];
-  if (refs.sole) parts.push('replicate the sole/outsole tread pattern, height, color and rubber texture from the sole reference image exactly');
-  if (refs.leather) parts.push('apply the material/texture from the upper-material reference image to the upper');
-  if (refs.accessory) parts.push('integrate the buckle/accessory style from the accessory reference image');
-  if (refs.secondary) parts.push('use the lace/secondary panel color from the secondary reference image');
-  return parts.length ? `Reference guidance: ${parts.join('; ')}.` : '';
+// Image_urls dizisindeki sıra ile birebir eşleşen, konum bazlı (Image #N) prompt enumeration.
+// Bu sayede model "hangi referans neyi temsil ediyor" karışıklığa düşmüyor.
+function buildEnumeratedHints(primaryUrl: string | null, refs?: References): string {
+  const lines: string[] = [];
+  let idx = 1;
+  if (primaryUrl) {
+    lines.push(`Image #${idx}: PRIMARY SUBJECT — the main shoe to preserve / transform.`);
+    idx++;
+  }
+  if (refs?.sketch) {
+    lines.push(`Image #${idx}: SKETCH — use this drawing as the silhouette and structural blueprint of the final shoe.`);
+    idx++;
+  }
+  if (refs?.sole) {
+    lines.push(`Image #${idx}: SOLE / OUTSOLE — CRITICAL: replicate the tread pattern, sole thickness, sole color, and rubber/foam texture from this image EXACTLY on the bottom of the shoe. The shoe in the final output MUST have this exact sole — do not invent a different sole.`);
+    idx++;
+  }
+  if (refs?.leather) {
+    lines.push(`Image #${idx}: UPPER MATERIAL — apply this material/texture/color to the upper part of the shoe (the body above the sole).`);
+    idx++;
+  }
+  if (refs?.accessory) {
+    lines.push(`Image #${idx}: BUCKLE / ACCESSORY — integrate the buckle or hardware style from this image into the shoe.`);
+    idx++;
+  }
+  if (refs?.secondary) {
+    lines.push(`Image #${idx}: LACES / SECONDARY PANEL — use this color/material for the laces or secondary panel.`);
+    idx++;
+  }
+  return lines.length ? `REFERENCE MAP (numbered to match the order of input images):\n${lines.join('\n')}` : '';
 }
 
 export async function POST(request: Request) {
@@ -97,7 +119,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'En az bir görsel veya prompt gerekli' }, { status: 400 });
     }
 
-    const refHints = buildReferenceHints(references);
+    const refHints = buildEnumeratedHints(primaryUrl, references);
 
     const protections: string[] = [];
     if (preserveForm !== false) protections.push('Strictly preserve silhouette, sole height and toe shape.');
@@ -107,18 +129,35 @@ export async function POST(request: Request) {
 
     const firstStagePrompt = `${buildStudioPrompt({ isDesignMode, shoeType, customPrompt: prompt, refHints })} ${protectionRule}`;
 
-    const studioInput: Record<string, unknown> = {
-      prompt: firstStagePrompt,
-      negative_prompt: SHOE_NEGATIVE_PROMPT,
-      image_urls: allInputUrls,
-      imageScale: isDesignMode ? 0.65 : 0.9,
-      aspect_ratio: '1:1',
-      quality: 'basic',
-    };
+    // Multi-image composition gerektiren tasarım modunda nano-banana-pro kullan (referansları gerçekten okur).
+    // Tek görselli foto modunda seedream-lite yeterli ve daha hızlı.
+    const hasMultipleRefs = allInputUrls.length > 1;
+    const useNanoBanana = isDesignMode || hasMultipleRefs;
+
+    const studioInput: Record<string, unknown> = useNanoBanana
+      ? {
+          prompt: firstStagePrompt,
+          // nano-banana-pro tüm 3 alan adını da tanıyor — belirsizlik kalmasın
+          image_urls: allInputUrls,
+          image_input: allInputUrls,
+          image_url: allInputUrls[0],
+          aspect_ratio: '1:1',
+        }
+      : {
+          prompt: firstStagePrompt,
+          negative_prompt: SHOE_NEGATIVE_PROMPT,
+          image_urls: allInputUrls,
+          image_url: allInputUrls[0],
+          imageScale: 0.9,
+          aspect_ratio: '1:1',
+          quality: 'basic',
+        };
+
+    const modelSlug = useNanoBanana ? 'nano-banana-pro' : 'seedream/5-lite-image-to-image';
 
     const createRes = await axios.post(
       `${KIE_BASE}/api/v1/jobs/createTask`,
-      { model: 'seedream/5-lite-image-to-image', input: studioInput },
+      { model: modelSlug, input: studioInput },
       { headers: { Authorization: `Bearer ${getKieKey()}`, 'Content-Type': 'application/json' } }
     );
     const taskId = createRes.data?.data?.taskId;

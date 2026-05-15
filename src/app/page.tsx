@@ -299,7 +299,9 @@ export default function WorkspacePage() {
         shoeType: selectedType,
         material: 'premium material',
         prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-        imageUrl: activeTab === 'foto' ? image : (sketchImage || soleImage || leatherImage || accessoryImage || secondaryImage),
+        // Tasarım modunda primary'yi BOŞ bırak — referansları konum sırasına göre prompt'ta enumerate ediyoruz.
+        // Foto modunda kullanıcının ana fotoğrafı her zaman primary'dir.
+        imageUrl: activeTab === 'foto' ? image : null,
         aspectRatio,
         preserveForm,
         preserveDetails,
