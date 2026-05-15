@@ -580,26 +580,44 @@ export default function WorkspacePage() {
                 <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
                   <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center justify-between">
                     Kaynak Görsel
-                    {(retouchSource || result) && <button onClick={() => setRetouchSource(null)} className="text-xs text-red-400 hover:text-red-300">Temizle</button>}
+                    {retouchSource && <button onClick={() => setRetouchSource(null)} className="text-xs text-red-400 hover:text-red-300">Temizle</button>}
                   </h3>
                   <div
-                    className={`relative group flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                    className={`relative group flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
                       (retouchSource || result) ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
                     }`}
+                    onDragOver={handleDrag}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={(e) => handleDrop(e, setRetouchSource)}
                     onClick={() => retouchSourceRef.current?.click()}
                   >
                     {(retouchSource || result) ? (
-                      <div className="absolute inset-0 p-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={(retouchSource || result) as string} alt="Source" className="w-full h-full object-contain rounded-lg" />
-                      </div>
+                      <>
+                        <div className="absolute inset-0 p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={(retouchSource || result) as string} alt="Source" className="w-full h-full object-contain rounded-lg opacity-80 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-all rounded-xl">
+                          <span className="opacity-0 group-hover:opacity-100 text-xs font-medium text-white bg-cyan-600/90 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            Görseli Değiştir
+                          </span>
+                        </div>
+                      </>
                     ) : (
-                      <span className="text-xs text-zinc-400 px-4 text-center">Düzenlenecek ayakkabı görselini yükle</span>
+                      <div className="text-center px-4">
+                        <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-2 text-zinc-400">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        </div>
+                        <span className="text-sm font-medium text-zinc-300">Görsel Yükle</span>
+                        <p className="text-[10px] text-zinc-500 mt-1">Sürükle-bırak veya tıkla</p>
+                      </div>
                     )}
                     <input type="file" ref={retouchSourceRef} className="hidden" accept="image/*" onChange={e => handleFile(e, setRetouchSource)} />
                   </div>
                   {result && !retouchSource && (
-                    <p className="mt-2 text-[10px] text-cyan-400/70">↑ Son üretilen sonuç otomatik seçildi. Farklı bir görsel istersen yükle.</p>
+                    <p className="mt-2 text-[10px] text-cyan-400/70">↑ Son üretilen sonuç otomatik seçildi. Hover'la "Değiştir"e tıklayarak başka görsel yükleyebilirsin.</p>
                   )}
                 </div>
 
@@ -670,18 +688,35 @@ export default function WorkspacePage() {
                   </h3>
                   <p className="text-[10px] text-zinc-500 mb-2">Yeni materyal / renk / desen örneği — model bu görselden öğrenir.</p>
                   <div
-                    className={`relative group flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                    className={`relative group flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
                       retouchReference ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'
                     }`}
+                    onDragOver={handleDrag}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={(e) => handleDrop(e, setRetouchReference)}
                     onClick={() => retouchReferenceRef.current?.click()}
                   >
                     {retouchReference ? (
-                      <div className="absolute inset-0 p-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={retouchReference} alt="Reference" className="w-full h-full object-contain rounded-lg" />
-                      </div>
+                      <>
+                        <div className="absolute inset-0 p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={retouchReference} alt="Reference" className="w-full h-full object-contain rounded-lg opacity-80 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-all rounded-xl">
+                          <span className="opacity-0 group-hover:opacity-100 text-xs font-medium text-white bg-cyan-600/90 px-3 py-1.5 rounded-lg">
+                            Görseli Değiştir
+                          </span>
+                        </div>
+                      </>
                     ) : (
-                      <span className="text-xs text-zinc-500 px-4 text-center">Materyal / renk / desen örneği</span>
+                      <div className="text-center px-4">
+                        <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-1.5 text-zinc-400">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        </div>
+                        <span className="text-xs font-medium text-zinc-300">Görsel Yükle</span>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">Materyal / renk / desen örneği</p>
+                      </div>
                     )}
                     <input type="file" ref={retouchReferenceRef} className="hidden" accept="image/*" onChange={e => handleFile(e, setRetouchReference)} />
                   </div>
