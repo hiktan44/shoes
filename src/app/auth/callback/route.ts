@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
-  const next = url.searchParams.get('next') || '/';
+  const next = url.searchParams.get('next') || '/studio';
   const errorDesc = url.searchParams.get('error_description');
 
   // Proxy arkasında doğru public origin'i bul (Traefik/Coolify)
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${base}${next.startsWith('/') ? next : '/'}`);
+      return NextResponse.redirect(`${base}${next.startsWith('/') ? next : '/studio'}`);
     }
     return NextResponse.redirect(`${base}/login?error=${encodeURIComponent(error.message)}`);
   }

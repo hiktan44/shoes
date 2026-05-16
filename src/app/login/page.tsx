@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || '/';
+  const next = params.get('next') || '/studio';
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');

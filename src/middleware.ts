@@ -25,7 +25,8 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
+  // Landing page ('/') herkese açık (exact). Diğer public path'ler prefix eşleşir.
+  const isPublic = pathname === '/' || PUBLIC_PATHS.some(p => pathname.startsWith(p));
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
@@ -34,9 +35,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Giriş yapmış kullanıcı login'e gelirse stüdyoya al
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = '/studio';
     return NextResponse.redirect(url);
   }
 

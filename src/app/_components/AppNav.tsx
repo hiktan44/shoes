@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 const TABS = [
-  { href: '/',        label: 'Stüdyo' },
+  { href: '/studio',  label: 'Stüdyo' },
   { href: '/analyze', label: 'Ürün Analizi' },
   { href: '/batch',   label: 'Toplu Üretim' },
 ];
@@ -55,7 +55,7 @@ export default function AppNav() {
         </div>
         <div className="flex items-center gap-1">
           {TABS.map(t => {
-            const active = t.href === '/' ? pathname === '/' : pathname.startsWith(t.href);
+            const active = pathname.startsWith(t.href);
             return (
               <Link
                 key={t.href}
