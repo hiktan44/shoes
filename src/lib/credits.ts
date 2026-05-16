@@ -16,11 +16,11 @@ export const CREDIT_COSTS = {
 } as const;
 export type CreditReason = keyof typeof CREDIT_COSTS;
 
-// Kredi paketleri (fasheone.com ile birebir) — fiyat TRY
+// Kredi paketleri (fasheone.com canlı fiyatlarıyla birebir) — fiyat TRY
 export const CREDIT_PACKAGES = {
-  SMALL: { id: 'SMALL', label: 'Başlangıç', credits: 100, priceTRY: 999, priceEUR: 19.9 },
-  MEDIUM: { id: 'MEDIUM', label: 'Standart', credits: 250, priceTRY: 2399, priceEUR: 48.9, popular: true },
-  LARGE: { id: 'LARGE', label: 'Profesyonel', credits: 500, priceTRY: 4499, priceEUR: 89.9 },
+  SMALL: { id: 'SMALL', label: 'Başlangıç', credits: 100, priceTRY: 1399 },
+  MEDIUM: { id: 'MEDIUM', label: 'Standart', credits: 250, priceTRY: 3199, popular: true },
+  LARGE: { id: 'LARGE', label: 'Profesyonel', credits: 500, priceTRY: 5999 },
 } as const;
 export type PackageId = keyof typeof CREDIT_PACKAGES;
 

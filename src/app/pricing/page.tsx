@@ -3,9 +3,9 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const PACKAGES = [
-  { id: 'SMALL', label: 'Başlangıç', credits: 100, priceTRY: 999, popular: false },
-  { id: 'MEDIUM', label: 'Standart', credits: 250, priceTRY: 2399, popular: true },
-  { id: 'LARGE', label: 'Profesyonel', credits: 500, priceTRY: 4499, popular: false },
+  { id: 'SMALL', label: 'Başlangıç', credits: 100, priceTRY: 1399, popular: false },
+  { id: 'MEDIUM', label: 'Standart', credits: 250, priceTRY: 3199, popular: true },
+  { id: 'LARGE', label: 'Profesyonel', credits: 500, priceTRY: 5999, popular: false },
 ];
 
 const USAGE = [

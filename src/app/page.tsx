@@ -236,9 +236,9 @@ export default function Landing() {
           </div>
           <div className="mt-10 grid sm:grid-cols-3 gap-5">
             {[
-              { n: 'Başlangıç', c: '100 kredi', p: '999 ₺' },
-              { n: 'Standart', c: '250 kredi', p: '2.399 ₺', pop: true },
-              { n: 'Profesyonel', c: '500 kredi', p: '4.499 ₺' },
+              { n: 'Başlangıç', c: '100 kredi', p: '1.399 ₺' },
+              { n: 'Standart', c: '250 kredi', p: '3.199 ₺', pop: true },
+              { n: 'Profesyonel', c: '500 kredi', p: '5.999 ₺' },
             ].map(p => (
               <div key={p.n} className={`rounded-2xl p-7 border ${p.pop ? 'bg-white text-zinc-900 border-white' : 'border-zinc-700'}`}>
                 {p.pop && <span className="text-[11px] font-bold text-rose-600">EN ÇOK TERCİH EDİLEN</span>}
