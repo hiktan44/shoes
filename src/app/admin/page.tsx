@@ -71,14 +71,23 @@ export default function AdminPage() {
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [role, setRole] = useState('');
+  const [status, setStatus] = useState('');
+  const [sort, setSort] = useState('registered_desc');
 
-  const load = useCallback(async (query = '', f = '', t = '') => {
+  const load = useCallback(async (
+    query = '', f = '', t = '',
+    flt: { role?: string; status?: string; sort?: string } = {}
+  ) => {
     setLoading(true);
     try {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (f) qs.set('from', f);
       if (t) qs.set('to', t);
+      if (flt.role) qs.set('role', flt.role);
+      if (flt.status) qs.set('status', flt.status);
+      if (flt.sort) qs.set('sort', flt.sort);
       const r = await fetch(`/api/admin/overview?${qs.toString()}`);
       if (r.status === 403) { setDenied(true); setLoading(false); return; }
       const d = await r.json();
@@ -100,7 +109,7 @@ export default function AdminPage() {
       body: JSON.stringify({ userId: u.id, delta, note: 'admin panel' }),
     });
     setBusy(null);
-    load(q, from, to);
+    load(q, from, to, { role, status, sort });
   };
 
   const toggleAdmin = async (u: UserRow) => {
@@ -111,7 +120,7 @@ export default function AdminPage() {
       body: JSON.stringify({ userId: u.id, isAdmin: !u.is_admin }),
     });
     setBusy(null);
-    load(q, from, to);
+    load(q, from, to, { role, status, sort });
   };
 
   const toggleSuspend = async (u: UserRow) => {
@@ -122,7 +131,7 @@ export default function AdminPage() {
       body: JSON.stringify({ userId: u.id, action: 'suspend', value: !u.suspended }),
     });
     setBusy(null);
-    load(q, from, to);
+    load(q, from, to, { role, status, sort });
   };
 
   const removeUser = async (u: UserRow) => {
@@ -134,7 +143,7 @@ export default function AdminPage() {
       body: JSON.stringify({ userId: u.id, action: 'delete' }),
     });
     setBusy(null);
-    load(q, from, to);
+    load(q, from, to, { role, status, sort });
   };
 
   const exportCsv = (type: 'users' | 'transactions') => {
@@ -199,7 +208,7 @@ export default function AdminPage() {
             <label className="block text-[11px] text-zinc-500 mb-1">Bitiş</label>
             <input type="date" value={to} onChange={e => setTo(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200" />
           </div>
-          <button onClick={() => load(q, from, to)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs text-white">Uygula</button>
+          <button onClick={() => load(q, from, to, { role, status, sort })} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs text-white">Uygula</button>
           {(from || to) && <button onClick={() => { setFrom(''); setTo(''); load(q, '', ''); }} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs">Sıfırla</button>}
           <div className="flex-1" />
           <button onClick={() => exportCsv('users')} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs flex items-center gap-1.5">⬇ Kullanıcılar CSV</button>
@@ -224,15 +233,33 @@ export default function AdminPage() {
 
         {/* Kullanıcı tablosu */}
         <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5 mb-8">
-          <div className="flex items-center justify-between mb-4 gap-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
             <h2 className="text-sm font-semibold text-zinc-200">Kullanıcılar</h2>
-            <form onSubmit={(e) => { e.preventDefault(); load(q, from, to); }} className="flex gap-2">
+            <form onSubmit={(e) => { e.preventDefault(); load(q, from, to, { role, status, sort }); }} className="flex flex-wrap gap-2">
               <input
                 value={q} onChange={e => setQ(e.target.value)}
                 placeholder="E-posta ara…"
-                className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs w-48 focus:outline-none focus:border-indigo-500"
+                className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs w-44 focus:outline-none focus:border-indigo-500"
               />
-              <button className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs border border-zinc-700">Ara</button>
+              <select value={role} onChange={e => setRole(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-300">
+                <option value="">Tüm roller</option>
+                <option value="admin">Admin</option>
+                <option value="user">Üye</option>
+              </select>
+              <select value={status} onChange={e => setStatus(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-300">
+                <option value="">Tüm durumlar</option>
+                <option value="active">Aktif</option>
+                <option value="suspended">Askıda</option>
+              </select>
+              <select value={sort} onChange={e => setSort(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-300">
+                <option value="registered_desc">En yeni kayıt</option>
+                <option value="registered_asc">En eski kayıt</option>
+                <option value="credits_desc">En çok kredi</option>
+                <option value="generations_desc">En çok üretim</option>
+                <option value="paid_desc">En çok ödeme</option>
+                <option value="activity_desc">Son aktivite</option>
+              </select>
+              <button className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs">Filtrele</button>
             </form>
           </div>
           <div className="overflow-x-auto custom-scrollbar">

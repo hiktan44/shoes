@@ -64,8 +64,12 @@ function LoginForm() {
       return;
     }
 
+    // Hoş geldin maili (fire-and-forget — session cookie set olduktan sonra)
+    const fireWelcome = () => { fetch('/api/auth/welcome', { method: 'POST' }).catch(() => {}); };
+
     // Onay KAPALI ise signUp doğrudan session döndürür → direkt içeri al
     if (data.session) {
+      fireWelcome();
       setLoading(false);
       router.push(next);
       router.refresh();
@@ -76,6 +80,7 @@ function LoginForm() {
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (!signInErr) {
+      fireWelcome();
       router.push(next);
       router.refresh();
       return;

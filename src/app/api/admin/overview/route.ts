@@ -11,10 +11,13 @@ export async function GET(request: Request) {
   const q = sp.get('q')?.trim() || '';
   const from = sp.get('from') || undefined;
   const to = sp.get('to') || undefined;
+  const role = sp.get('role') || undefined;
+  const status = sp.get('status') || undefined;
+  const sort = sp.get('sort') || undefined;
   try {
     const [stats, users, transactions, series] = await Promise.all([
       getStats(),
-      listUsers(q),
+      listUsers(q, { role, status, sort }),
       recentTransactions(),
       getDailySeries(30, from, to),
     ]);

@@ -31,6 +31,47 @@ function wrap(title: string, body: string): string {
   </div>`;
 }
 
+export async function sendWelcome(to: string): Promise<boolean> {
+  const html = wrap('Fasheone Shoes\'a hoş geldin 👟', `
+    <p style="font-size:14px;line-height:1.6">Merhaba,</p>
+    <p style="font-size:14px;line-height:1.6">Aramıza katıldığın için teşekkürler! Hesabına <strong>10 ücretsiz kredi</strong> tanımlandı — hemen üretmeye başlayabilirsin.</p>
+    <ul style="font-size:14px;line-height:1.8;color:#3f3f46;padding-left:18px">
+      <li>📸 Telefon fotoğrafını <strong>stüdyo görseline</strong> çevir</li>
+      <li>🎨 Çizim + taban + materyalden <strong>sıfır tasarım</strong> üret</li>
+      <li>🚶 Aynı modelle <strong>çoklu poz</strong> ve albüm oluştur</li>
+      <li>🪄 <strong>Rötuş</strong> ile bölgesel düzenleme yap</li>
+      <li>🧾 <strong>E-ticaret metni</strong> + SEO çıkar</li>
+    </ul>
+    <a href="https://shoes.fasheone.com/studio" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;font-size:14px;margin-top:8px">İlk görselini üret →</a>
+  `);
+  return sendEmail({ to, subject: 'Fasheone Shoes\'a hoş geldin — 10 ücretsiz kredin hazır', html });
+}
+
+export async function sendDailySummary(to: string, d: {
+  date: string; newUsers: number; revenueToday: number; ordersToday: number;
+  generationsToday: number; totalUsers: number; totalRevenue: number; totalCredits: number;
+}): Promise<boolean> {
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:8px 0;color:#71717a;font-size:14px">${label}</td><td style="padding:8px 0;text-align:right;font-weight:600;font-size:14px">${value}</td></tr>`;
+  const html = wrap(`Günlük Özet · ${d.date}`, `
+    <p style="font-size:14px;color:#71717a;margin-bottom:8px">Bugünkü hareketler</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+      ${row('Yeni kullanıcı', String(d.newUsers))}
+      ${row('Gelir (bugün)', `${d.revenueToday.toLocaleString('tr-TR')} ₺`)}
+      ${row('Sipariş (bugün)', String(d.ordersToday))}
+      ${row('Üretim (bugün)', String(d.generationsToday))}
+    </table>
+    <p style="font-size:14px;color:#71717a;margin-bottom:8px">Genel toplam</p>
+    <table style="width:100%;border-collapse:collapse">
+      ${row('Toplam kullanıcı', String(d.totalUsers))}
+      ${row('Toplam gelir', `${d.totalRevenue.toLocaleString('tr-TR')} ₺`)}
+      ${row('Dağıtılan kredi (bakiye)', String(d.totalCredits))}
+    </table>
+    <a href="https://shoes.fasheone.com/admin" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;font-size:14px;margin-top:16px">Admin paneli →</a>
+  `);
+  return sendEmail({ to, subject: `Fasheone Shoes — Günlük Özet ${d.date}`, html });
+}
+
 export async function sendPurchaseReceipt(opts: {
   to: string; credits: number; amount: number; balance?: number;
 }): Promise<boolean> {

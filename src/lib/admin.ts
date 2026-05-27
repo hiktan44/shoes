@@ -67,8 +67,26 @@ export async function getStats() {
   return rows[0] ?? {};
 }
 
-export async function listUsers(q: string, limit = 50) {
-  const where = q ? `where lower(u.email) like '%${esc(q.toLowerCase())}%'` : '';
+export async function listUsers(
+  q: string,
+  opts?: { role?: string; status?: string; sort?: string },
+  limit = 100
+) {
+  const conds: string[] = [];
+  if (q) conds.push(`lower(u.email) like '%${esc(q.toLowerCase())}%'`);
+  if (opts?.role === 'admin') conds.push(`coalesce(p.is_admin,false) = true`);
+  if (opts?.role === 'user') conds.push(`coalesce(p.is_admin,false) = false`);
+  if (opts?.status === 'suspended') conds.push(`coalesce(p.suspended,false) = true`);
+  if (opts?.status === 'active') conds.push(`coalesce(p.suspended,false) = false`);
+  const where = conds.length ? `where ${conds.join(' and ')}` : '';
+  const orderBy = ({
+    registered_desc: 'u.created_at desc',
+    registered_asc: 'u.created_at asc',
+    credits_desc: 'credits desc',
+    generations_desc: 'total_generations desc',
+    paid_desc: 'total_paid desc',
+    activity_desc: 'last_activity desc nulls last',
+  } as Record<string, string>)[opts?.sort || 'registered_desc'] || 'u.created_at desc';
   return pgQuery(`
     select
       u.id,
@@ -86,7 +104,7 @@ export async function listUsers(q: string, limit = 50) {
     from auth.users u
     left join public.profiles p on p.id = u.id
     ${where}
-    order by u.created_at desc
+    order by ${orderBy}
     limit ${Math.min(200, Math.max(1, limit))};
   `);
 }
@@ -142,6 +160,29 @@ export async function getDailySeries(days = 30, from?: string, to?: string) {
     from generate_series(${startExpr}, ${endExpr}, interval '1 day') d
     order by d;
   `);
+}
+
+// Günlük özet (cron/admin maili için) — bugünün hareketleri + genel toplam
+export async function getDailySummary() {
+  const [r] = await pgQuery<Record<string, number>[]>(`
+    select
+      (select count(*) from auth.users where created_at >= date_trunc('day', now())) as new_users,
+      (select coalesce(sum(amount),0) from public.transactions where type='purchase' and status='completed' and created_at >= date_trunc('day', now())) as revenue_today,
+      (select count(*) from public.transactions where type='purchase' and status='completed' and created_at >= date_trunc('day', now())) as orders_today,
+      (select count(*) from public.generations where created_at >= date_trunc('day', now())) as generations_today,
+      (select count(*) from auth.users) as total_users,
+      (select coalesce(sum(amount),0) from public.transactions where type='purchase' and status='completed') as total_revenue,
+      (select coalesce(sum(credits),0) from public.profiles) as total_credits;
+  `);
+  return r ?? {};
+}
+
+// Admin e-posta listesini DB'den çek (is_admin) — env ADMIN_EMAILS ile birleştirilecek
+export async function getAdminEmails(): Promise<string[]> {
+  const rows = await pgQuery<{ email: string }[]>(`
+    select u.email from auth.users u join public.profiles p on p.id=u.id where p.is_admin and u.email is not null;
+  `);
+  return rows.map(r => r.email);
 }
 
 // Askıya al / kaldır
