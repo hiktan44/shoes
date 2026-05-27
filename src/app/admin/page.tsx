@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 
 type UserRow = {
   id: string; email: string; registered_at: string; last_sign_in_at: string | null;
-  credits: number; is_admin: boolean; total_generations: number; today_generations: number;
+  credits: number; is_admin: boolean; suspended: boolean; total_generations: number; today_generations: number;
   credits_used: number; total_paid: number; last_activity: string | null;
 };
 type Tx = {
@@ -69,10 +69,17 @@ export default function AdminPage() {
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(async (query = '') => {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  const load = useCallback(async (query = '', f = '', t = '') => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/admin/overview?q=${encodeURIComponent(query)}`);
+      const qs = new URLSearchParams();
+      if (query) qs.set('q', query);
+      if (f) qs.set('from', f);
+      if (t) qs.set('to', t);
+      const r = await fetch(`/api/admin/overview?${qs.toString()}`);
       if (r.status === 403) { setDenied(true); setLoading(false); return; }
       const d = await r.json();
       setData(d);
@@ -93,7 +100,7 @@ export default function AdminPage() {
       body: JSON.stringify({ userId: u.id, delta, note: 'admin panel' }),
     });
     setBusy(null);
-    load(q);
+    load(q, from, to);
   };
 
   const toggleAdmin = async (u: UserRow) => {
@@ -104,7 +111,34 @@ export default function AdminPage() {
       body: JSON.stringify({ userId: u.id, isAdmin: !u.is_admin }),
     });
     setBusy(null);
-    load(q);
+    load(q, from, to);
+  };
+
+  const toggleSuspend = async (u: UserRow) => {
+    if (!window.confirm(`${u.email} ${u.suspended ? 'askıdan ÇIKARILSIN' : 'ASKIYA alınsın (üretim yapamaz)'} mı?`)) return;
+    setBusy(u.id);
+    await fetch('/api/admin/user-action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id, action: 'suspend', value: !u.suspended }),
+    });
+    setBusy(null);
+    load(q, from, to);
+  };
+
+  const removeUser = async (u: UserRow) => {
+    if (!window.confirm(`${u.email} KALICI olarak silinsin mi?\nTüm üretimleri, işlemleri ve hesabı silinir. Bu işlem geri alınamaz.`)) return;
+    if (!window.confirm('Emin misiniz? Son onay.')) return;
+    setBusy(u.id);
+    await fetch('/api/admin/user-action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id, action: 'delete' }),
+    });
+    setBusy(null);
+    load(q, from, to);
+  };
+
+  const exportCsv = (type: 'users' | 'transactions') => {
+    window.open(`/api/admin/export?type=${type}`, '_blank');
   };
 
   if (denied) {
@@ -155,16 +189,33 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Grafikler — son 30 gün */}
+        {/* Araç çubuğu — tarih aralığı + CSV export */}
+        <div className="flex flex-wrap items-end gap-3 mb-6">
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1">Başlangıç</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1">Bitiş</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200" />
+          </div>
+          <button onClick={() => load(q, from, to)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs text-white">Uygula</button>
+          {(from || to) && <button onClick={() => { setFrom(''); setTo(''); load(q, '', ''); }} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs">Sıfırla</button>}
+          <div className="flex-1" />
+          <button onClick={() => exportCsv('users')} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs flex items-center gap-1.5">⬇ Kullanıcılar CSV</button>
+          <button onClick={() => exportCsv('transactions')} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs flex items-center gap-1.5">⬇ İşlemler CSV</button>
+        </div>
+
+        {/* Grafikler */}
         {data?.series && data.series.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-zinc-200 mb-1">💰 Günlük Gelir <span className="text-zinc-500 font-normal">· son 30 gün</span></h2>
+              <h2 className="text-sm font-semibold text-zinc-200 mb-1">💰 Günlük Gelir <span className="text-zinc-500 font-normal">· {(from || to) ? 'seçili aralık' : 'son 30 gün'}</span></h2>
               <p className="text-[11px] text-zinc-500 mb-4">Tamamlanan satın almalar (₺)</p>
               <BarChart data={data.series} valueKey="revenue" color="#34d399" format={(n) => `${n.toLocaleString('tr-TR')} ₺`} />
             </div>
             <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-zinc-200 mb-1">🎨 Günlük Üretim <span className="text-zinc-500 font-normal">· son 30 gün</span></h2>
+              <h2 className="text-sm font-semibold text-zinc-200 mb-1">🎨 Günlük Üretim <span className="text-zinc-500 font-normal">· {(from || to) ? 'seçili aralık' : 'son 30 gün'}</span></h2>
               <p className="text-[11px] text-zinc-500 mb-4">Oluşturulan görsel sayısı</p>
               <BarChart data={data.series} valueKey="generations" color="#818cf8" format={(n) => `${n.toLocaleString('tr-TR')}`} />
             </div>
@@ -175,7 +226,7 @@ export default function AdminPage() {
         <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5 mb-8">
           <div className="flex items-center justify-between mb-4 gap-3">
             <h2 className="text-sm font-semibold text-zinc-200">Kullanıcılar</h2>
-            <form onSubmit={(e) => { e.preventDefault(); load(q); }} className="flex gap-2">
+            <form onSubmit={(e) => { e.preventDefault(); load(q, from, to); }} className="flex gap-2">
               <input
                 value={q} onChange={e => setQ(e.target.value)}
                 placeholder="E-posta ara…"
@@ -218,12 +269,15 @@ export default function AdminPage() {
                     <td className="py-2.5 px-3 text-zinc-500">{fmtDate(u.last_activity)}</td>
                     <td className="py-2.5 px-3 text-zinc-500">{fmtDate(u.registered_at)}</td>
                     <td className="py-2.5 px-3">
-                      {u.is_admin
-                        ? <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px]">ADMIN</span>
-                        : <span className="text-zinc-600 text-[10px]">üye</span>}
+                      <div className="flex flex-col gap-0.5">
+                        {u.is_admin
+                          ? <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] w-fit">ADMIN</span>
+                          : <span className="text-zinc-600 text-[10px]">üye</span>}
+                        {u.suspended && <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-[10px] w-fit">ASKIDA</span>}
+                      </div>
                     </td>
                     <td className="py-2.5 pl-3">
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-wrap gap-1.5">
                         <button
                           onClick={() => adjust(u)} disabled={busy === u.id}
                           className="px-2 py-1 bg-indigo-600/80 hover:bg-indigo-500 rounded text-[10px] text-white disabled:opacity-50"
@@ -232,6 +286,14 @@ export default function AdminPage() {
                           onClick={() => toggleAdmin(u)} disabled={busy === u.id}
                           className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-[10px] disabled:opacity-50"
                         >{u.is_admin ? 'Admin kaldır' : 'Admin yap'}</button>
+                        <button
+                          onClick={() => toggleSuspend(u)} disabled={busy === u.id}
+                          className="px-2 py-1 bg-zinc-800 hover:bg-amber-900/40 border border-zinc-700 rounded text-[10px] text-amber-300 disabled:opacity-50"
+                        >{u.suspended ? 'Aktifleştir' : 'Askıya al'}</button>
+                        <button
+                          onClick={() => removeUser(u)} disabled={busy === u.id}
+                          className="px-2 py-1 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 rounded text-[10px] text-red-400 disabled:opacity-50"
+                        >Sil</button>
                       </div>
                     </td>
                   </tr>

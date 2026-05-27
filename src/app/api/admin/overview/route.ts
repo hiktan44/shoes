@@ -7,13 +7,16 @@ export async function GET(request: Request) {
   const admin = await getAdminUser();
   if (!admin) return NextResponse.json({ error: 'Yetkisiz' }, { status: 403 });
 
-  const q = new URL(request.url).searchParams.get('q')?.trim() || '';
+  const sp = new URL(request.url).searchParams;
+  const q = sp.get('q')?.trim() || '';
+  const from = sp.get('from') || undefined;
+  const to = sp.get('to') || undefined;
   try {
     const [stats, users, transactions, series] = await Promise.all([
       getStats(),
       listUsers(q),
       recentTransactions(),
-      getDailySeries(30),
+      getDailySeries(30, from, to),
     ]);
     return NextResponse.json({ stats, users, transactions, series, me: admin.email });
   } catch (e) {

@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 
 type Profile = {
   id: string; email: string; registered_at: string; last_sign_in_at: string | null;
-  credits: number; is_admin: boolean; total_generations: number; credits_used: number; total_paid: number;
+  credits: number; is_admin: boolean; suspended: boolean; total_generations: number; credits_used: number; total_paid: number;
 };
 type Gen = { id: string; result_url: string; mode: string; vibe: string | null; created_at: string };
 type Tx = { id: string; type: string; credits: number; amount: number | null; reason: string | null; provider: string | null; status: string; created_at: string };
@@ -57,6 +57,22 @@ export default function UserDetailPage() {
     await fetch('/api/admin/role', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: id, isAdmin: !profile.is_admin }) });
     setBusy(false); load();
   };
+  const toggleSuspend = async () => {
+    if (!profile) return;
+    if (!window.confirm(`${profile.email} ${profile.suspended ? 'askıdan ÇIKARILSIN' : 'ASKIYA alınsın'} mı?`)) return;
+    setBusy(true);
+    await fetch('/api/admin/user-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: id, action: 'suspend', value: !profile.suspended }) });
+    setBusy(false); load();
+  };
+  const remove = async () => {
+    if (!profile) return;
+    if (!window.confirm(`${profile.email} KALICI silinsin mi? Geri alınamaz.`)) return;
+    if (!window.confirm('Son onay — emin misiniz?')) return;
+    setBusy(true);
+    await fetch('/api/admin/user-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: id, action: 'delete' }) });
+    setBusy(false);
+    router.push('/admin');
+  };
 
   if (denied) {
     return (
@@ -93,17 +109,20 @@ export default function UserDetailPage() {
                 {profile.email[0]?.toUpperCase()}
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-lg font-semibold">{profile.email}</h1>
                   {profile.is_admin && <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px]">ADMIN</span>}
+                  {profile.suspended && <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-[10px]">ASKIDA</span>}
                 </div>
                 <div className="text-xs text-zinc-500 mt-1">
                   Kayıt: {fmtDate(profile.registered_at)} · Son giriş: {fmtDate(profile.last_sign_in_at)}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button onClick={adjust} disabled={busy} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs text-white disabled:opacity-50">± Kredi</button>
                 <button onClick={toggleAdmin} disabled={busy} className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs disabled:opacity-50">{profile.is_admin ? 'Admin kaldır' : 'Admin yap'}</button>
+                <button onClick={toggleSuspend} disabled={busy} className="px-3 py-2 bg-zinc-800 hover:bg-amber-900/40 border border-zinc-700 rounded-lg text-xs text-amber-300 disabled:opacity-50">{profile.suspended ? 'Aktifleştir' : 'Askıya al'}</button>
+                <button onClick={remove} disabled={busy} className="px-3 py-2 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 rounded-lg text-xs text-red-400 disabled:opacity-50">Sil</button>
               </div>
             </div>
 

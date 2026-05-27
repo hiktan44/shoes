@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { addCredits } from '@/lib/credits';
+import { sendPurchaseReceipt } from '@/lib/email';
 
 export const maxDuration = 26;
 // Stripe imza doğrulaması için ham gövde gerekir — bodyParser kapalı olmalı
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
 
       if (userId && credits > 0) {
         try {
-          await addCredits({
+          const res = await addCredits({
             userId,
             credits,
             amountPaid,
@@ -42,6 +43,11 @@ export async function POST(request: Request) {
             provider: 'stripe',
             providerRef: session.id, // idempotent anahtar
           });
+          // Satın alma onayı e-postası (yalnızca ilk işlemede; idempotent dup ise atla)
+          const email = session.customer_details?.email || session.customer_email || '';
+          if (email && !res.duplicate) {
+            await sendPurchaseReceipt({ to: email, credits, amount: amountPaid, balance: res.balance });
+          }
         } catch (e) {
           // Stripe'a 500 dönersek tekrar dener; addCredits zaten idempotent
           return NextResponse.json({ error: `Kredi yükleme hatası: ${(e as Error).message}` }, { status: 500 });
