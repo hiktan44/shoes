@@ -120,3 +120,45 @@ export async function setAdmin(userId: string, makeAdmin: boolean) {
        on conflict (id) do update set is_admin = ${makeAdmin}, updated_at = now();`
   );
 }
+
+// Günlük gelir + üretim serisi (son N gün) — grafikler için
+export async function getDailySeries(days = 30) {
+  const n = Math.min(90, Math.max(7, Math.floor(days)));
+  return pgQuery<{ day: string; revenue: number; generations: number; orders: number }[]>(`
+    select
+      to_char(d, 'YYYY-MM-DD') as day,
+      coalesce((select sum(t.amount) from public.transactions t
+                where t.type='purchase' and t.status='completed' and date_trunc('day', t.created_at)=d), 0) as revenue,
+      coalesce((select count(*) from public.transactions t
+                where t.type='purchase' and t.status='completed' and date_trunc('day', t.created_at)=d), 0) as orders,
+      coalesce((select count(*) from public.generations g
+                where date_trunc('day', g.created_at)=d), 0) as generations
+    from generate_series(date_trunc('day', now()) - interval '${n - 1} days', date_trunc('day', now()), interval '1 day') d
+    order by d;
+  `);
+}
+
+// Tek kullanıcı detayı: profil + sayımlar + son üretimler + işlemler
+export async function getUserDetail(userId: string) {
+  if (!UUID_RE.test(userId)) throw new Error('invalid user');
+  const [profile] = await pgQuery<Record<string, unknown>[]>(`
+    select u.id, u.email, u.created_at as registered_at, u.last_sign_in_at,
+           coalesce(p.credits,0) as credits, coalesce(p.is_admin,false) as is_admin,
+           (select count(*) from public.generations g where g.user_id=u.id) as total_generations,
+           (select coalesce(-sum(t.credits),0) from public.transactions t where t.user_id=u.id and t.type='usage') as credits_used,
+           (select coalesce(sum(t.amount),0) from public.transactions t where t.user_id=u.id and t.type='purchase' and t.status='completed') as total_paid
+    from auth.users u left join public.profiles p on p.id=u.id
+    where u.id='${userId}'::uuid;
+  `);
+  const generations = await pgQuery(`
+    select id, result_url, mode, vibe, created_at
+    from public.generations where user_id='${userId}'::uuid
+    order by created_at desc limit 48;
+  `);
+  const transactions = await pgQuery(`
+    select id, type, credits, amount, reason, provider, status, created_at
+    from public.transactions where user_id='${userId}'::uuid
+    order by created_at desc limit 100;
+  `);
+  return { profile: profile ?? null, generations, transactions };
+}

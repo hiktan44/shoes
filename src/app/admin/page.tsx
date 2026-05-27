@@ -11,10 +11,12 @@ type Tx = {
   id: string; email: string; type: string; credits: number; amount: number | null;
   reason: string | null; provider: string | null; status: string; created_at: string;
 };
+type SeriesPoint = { day: string; revenue: number; generations: number; orders: number };
 type Overview = {
   stats: Record<string, number>;
   users: UserRow[];
   transactions: Tx[];
+  series: SeriesPoint[];
   me: string;
   error?: string;
 };
@@ -22,6 +24,42 @@ type Overview = {
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 const fmtMoney = (n: number | null) => (n ? `${Number(n).toLocaleString('tr-TR')} ₺` : '—');
+
+// Basit SVG bar chart — son N gün
+function BarChart({ data, valueKey, color, format }: {
+  data: SeriesPoint[]; valueKey: 'revenue' | 'generations'; color: string; format: (n: number) => string;
+}) {
+  const vals = data.map(d => Number(d[valueKey]) || 0);
+  const max = Math.max(1, ...vals);
+  const total = vals.reduce((a, b) => a + b, 0);
+  return (
+    <div>
+      <div className="flex items-end gap-[3px] h-32">
+        {data.map((d, i) => {
+          const v = Number(d[valueKey]) || 0;
+          const h = Math.round((v / max) * 100);
+          return (
+            <div key={d.day} className="flex-1 group relative flex items-end" style={{ height: '100%' }}>
+              <div
+                className="w-full rounded-t transition-all"
+                style={{ height: `${Math.max(2, h)}%`, background: color, opacity: v === 0 ? 0.25 : 1 }}
+              />
+              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-[10px] z-10">
+                {d.day.slice(5)} · {format(v)}
+                {i === data.length - 1 ? ' (bugün)' : ''}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-between mt-2 text-[10px] text-zinc-500">
+        <span>{data[0]?.day.slice(5)}</span>
+        <span>Toplam: {format(total)}</span>
+        <span>{data[data.length - 1]?.day.slice(5)}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -117,6 +155,22 @@ export default function AdminPage() {
           ))}
         </div>
 
+        {/* Grafikler — son 30 gün */}
+        {data?.series && data.series.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-zinc-200 mb-1">💰 Günlük Gelir <span className="text-zinc-500 font-normal">· son 30 gün</span></h2>
+              <p className="text-[11px] text-zinc-500 mb-4">Tamamlanan satın almalar (₺)</p>
+              <BarChart data={data.series} valueKey="revenue" color="#34d399" format={(n) => `${n.toLocaleString('tr-TR')} ₺`} />
+            </div>
+            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-zinc-200 mb-1">🎨 Günlük Üretim <span className="text-zinc-500 font-normal">· son 30 gün</span></h2>
+              <p className="text-[11px] text-zinc-500 mb-4">Oluşturulan görsel sayısı</p>
+              <BarChart data={data.series} valueKey="generations" color="#818cf8" format={(n) => `${n.toLocaleString('tr-TR')}`} />
+            </div>
+          </div>
+        )}
+
         {/* Kullanıcı tablosu */}
         <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5 mb-8">
           <div className="flex items-center justify-between mb-4 gap-3">
@@ -151,7 +205,11 @@ export default function AdminPage() {
                 {!loading && data?.users?.length === 0 && <tr><td colSpan={10} className="py-8 text-center text-zinc-500">Kullanıcı yok</td></tr>}
                 {!loading && data?.users?.map(u => (
                   <tr key={u.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                    <td className="py-2.5 pr-4 text-zinc-200">{u.email}</td>
+                    <td className="py-2.5 pr-4">
+                      <button onClick={() => router.push(`/admin/users/${u.id}`)} className="text-indigo-300 hover:text-indigo-200 hover:underline text-left">
+                        {u.email}
+                      </button>
+                    </td>
                     <td className="py-2.5 px-3 font-medium text-indigo-300 tabular-nums">{u.credits}</td>
                     <td className="py-2.5 px-3 tabular-nums">{u.total_generations}</td>
                     <td className="py-2.5 px-3 tabular-nums">{u.today_generations}</td>
