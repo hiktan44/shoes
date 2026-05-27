@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef, useState } from 'react';
+import Link from 'next/link';
 import AppNav from '../_components/AppNav';
 
 const SHOE_TYPES = ['Genel Ayakkabı', 'Sneaker', 'Boots', 'Heels', 'Loafers', 'Sandals', 'Kids Shoes'];
@@ -66,6 +67,7 @@ export default function AnalyzePage() {
   const [language, setLanguage] = useState<'tr' | 'en'>('tr');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needCredits, setNeedCredits] = useState(false);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export default function AnalyzePage() {
     if (!imagePreview) return;
     setLoading(true);
     setError(null);
+    setNeedCredits(false);
     setResult(null);
     try {
       const r = await fetch('/api/analyze', {
@@ -106,9 +109,10 @@ export default function AnalyzePage() {
         body: JSON.stringify({ imageUrl: imagePreview, shoeType, language }),
       });
       const txt = await r.text();
-      let d: { result?: AnalyzeResult; provider?: string; error?: string };
+      let d: { result?: AnalyzeResult; provider?: string; error?: string; code?: string };
       try { d = JSON.parse(txt); }
       catch { throw new Error(`Sunucu yanıtı geçersiz (${r.status})`); }
+      if (r.status === 402 || d.code === 'insufficient_credits') setNeedCredits(true);
       if (!r.ok || !d.result) throw new Error(d.error || 'Analiz başarısız');
       setResult(d.result);
       setProvider(d.provider ?? null);
@@ -198,7 +202,12 @@ export default function AnalyzePage() {
                 </div>
               </div>
 
-              {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">{error}</div>}
+              {error && (
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 flex flex-col gap-2">
+                  <span>{error}</span>
+                  {needCredits && <Link href="/pricing" className="self-start px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">Kredi Al →</Link>}
+                </div>
+              )}
 
               <button
                 onClick={analyze}

@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import JSZip from 'jszip';
 import AppNav from '../_components/AppNav';
 import PoseGrid, { POSE_LIST } from '../_components/PoseGrid';
+import { studioCost } from '@/lib/creditCost';
 
 type HistoryItem = { id: string; url: string; mode: 'foto' | 'tasarim' | 'rotush'; vibe: string | null; ts: number };
 const HISTORY_MAX = 24;
@@ -20,6 +22,37 @@ const SCENES = [
 
 type MultiPoseResult = { poseId: string; state: 'pending' | 'success' | 'failed'; url?: string; error?: string };
 const POSE_CATALOG = POSE_LIST;
+
+// ---- Üretim resume (tab kapanma koruması) — localStorage; mevcut Kie task'ını yeniden pollar, kredi tekrar düşmez ----
+const PENDING_KEY = 'fasheone:pending-gen';
+type PendingTask = { poseId: string; taskId: string };
+type PendingMeta = {
+  ts?: number; kind: 'single' | 'multi'; mode: 'foto' | 'tasarim' | 'rotush';
+  vibe?: string; shoeType?: string; prompt?: string; aspectRatio: string; tasks: PendingTask[];
+};
+function writePending(p: PendingMeta) { try { localStorage.setItem(PENDING_KEY, JSON.stringify({ ...p, ts: Date.now() })); } catch {} }
+function clearPending() { try { localStorage.removeItem(PENDING_KEY); } catch {} }
+function readPending(): PendingMeta | null {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as PendingMeta;
+    if (!p.ts || Date.now() - p.ts > 10 * 60_000) { localStorage.removeItem(PENDING_KEY); return null; }
+    return p;
+  } catch { return null; }
+}
+async function saveResult(
+  resultUrl: string,
+  meta: { mode: string; vibe?: string | null; shoeType?: string; prompt?: string; aspectRatio?: string }
+): Promise<{ generation?: { id: string; created_at: string } }> {
+  try {
+    const r = await fetch('/api/generate/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resultUrl, ...meta }),
+    });
+    return await r.json().catch(() => ({}));
+  } catch { return {}; }
+}
 
 const RETOUCH_REGIONS = [
   { id: 'laces', label: 'Bağcık' },
@@ -74,6 +107,9 @@ export default function WorkspacePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needCredits, setNeedCredits] = useState(false); // 402 → "Kredi Al" CTA
+  const [progress, setProgress] = useState('');          // aşamalı ilerleme metni
+  const [showHint, setShowHint] = useState(false);       // ilk kullanım ipucu
   const [isZoomed, setIsZoomed] = useState(false);
 
   // Quality / Output controls
@@ -213,7 +249,58 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     refreshHistory();
+    try { if (!localStorage.getItem('fasheone:hint-seen')) setShowHint(true); } catch {}
   }, [refreshHistory]);
+
+  // Resume: sayfa açılışında yarım kalan üretim varsa mevcut Kie task'larını yeniden poll et (kredi tekrar düşmez)
+  useEffect(() => {
+    const p = readPending();
+    if (!p || !p.tasks?.length) return;
+    let cancelled = false;
+    const pollOne = async (taskId: string): Promise<string> => {
+      const start = Date.now(); let delay = 2000;
+      while (Date.now() - start < 240_000 && !cancelled) {
+        await new Promise(r => setTimeout(r, delay));
+        const sr = await fetch(`/api/generate/status?taskId=${encodeURIComponent(taskId)}`);
+        const sd = await sr.json().catch(() => ({}));
+        if (!sr.ok) throw new Error(sd.error || 'Status hatası');
+        if (sd.state === 'success') return sd.resultUrl as string;
+        if (sd.state === 'failed') throw new Error(sd.error || 'Üretim başarısız');
+        delay = Math.min(Math.floor(delay * 1.3), 5000);
+      }
+      throw new Error('zaman aşımı');
+    };
+    (async () => {
+      setLoading(true);
+      setProgress('Yarım kalan üretim sürdürülüyor…');
+      try {
+        if (p.kind === 'multi') {
+          setMultiResults(p.tasks.map(t => ({ poseId: t.poseId, state: 'pending' })));
+          await Promise.all(p.tasks.map(async t => {
+            try {
+              const url = await pollOne(t.taskId);
+              await saveResult(url, { mode: p.mode, vibe: t.poseId, shoeType: p.shoeType, prompt: p.prompt, aspectRatio: p.aspectRatio });
+              if (!cancelled) setMultiResults(prev => prev.map(m => m.poseId === t.poseId ? { ...m, state: 'success', url } : m));
+            } catch (e) {
+              if (!cancelled) setMultiResults(prev => prev.map(m => m.poseId === t.poseId ? { ...m, state: 'failed', error: (e as Error).message } : m));
+            }
+          }));
+        } else {
+          const url = await pollOne(p.tasks[0].taskId);
+          const sd = await saveResult(url, { mode: p.mode, vibe: p.vibe, shoeType: p.shoeType, prompt: p.prompt, aspectRatio: p.aspectRatio });
+          if (!cancelled) { setResult(url); pushHistory(url, sd?.generation ?? null); }
+        }
+      } catch { /* sessiz — task süresi geçmiş olabilir */ }
+      finally {
+        clearPending();
+        if (!cancelled) { setLoading(false); setProgress(''); }
+        try { window.dispatchEvent(new Event('credits:refresh')); } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
+    // sadece mount'ta bir kez
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pushHistory = (url: string, generation?: { id: string; created_at: string } | null) => {
     if (!generation) return refreshHistory();
@@ -283,43 +370,42 @@ export default function WorkspacePage() {
     if (activeTab === 'foto' && !image) return;
     if (activeTab === 'tasarim' && !designPrompt && !sketchImage) return;
 
+    // Bakiye ön-kontrolü (#7): üretime başlamadan toplam maliyeti karşılayabiliyor mu?
+    const cost = studioCost({ poses: selectedPoses.length, vibe: selectedVibe });
+    try {
+      const bRes = await fetch('/api/credits/balance');
+      if (bRes.ok) {
+        const b = await bRes.json();
+        if (typeof b.credits === 'number' && b.credits < cost) {
+          setNeedCredits(true);
+          setError(`Bu üretim ${cost} kredi gerektiriyor, bakiyeniz ${b.credits}. Lütfen kredi yükleyin.`);
+          return;
+        }
+      }
+    } catch { /* ön-kontrol başarısızsa sunucu 402 ile yine korur */ }
+
     setLoading(true);
     setError(null);
+    setNeedCredits(false);
     setMultiResults([]);
     setAlbumUrl(null);
+    setProgress('Hazırlanıyor…');
     try {
       const payload: {
-        vibe: string;
-        shoeType: string;
-        material: string;
-        prompt?: string;
+        vibe: string; shoeType: string; material: string; prompt?: string;
         imageUrl: string | null;
         references?: { sketch?: string; sole?: string; leather?: string; accessory?: string; secondary?: string };
-        aspectRatio: string;
-        preserveForm: boolean;
-        preserveDetails: boolean;
-        pairMode: 'auto' | 'off';
+        aspectRatio: string; preserveForm: boolean; preserveDetails: boolean; pairMode: 'auto' | 'off';
       } = {
-        vibe: selectedVibe,
-        shoeType: selectedType,
-        material: 'premium material',
+        vibe: selectedVibe, shoeType: selectedType, material: 'premium material',
         prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-        // Tasarım modunda primary'yi BOŞ bırak — referansları konum sırasına göre prompt'ta enumerate ediyoruz.
-        // Foto modunda kullanıcının ana fotoğrafı her zaman primary'dir.
         imageUrl: activeTab === 'foto' ? image : null,
-        aspectRatio,
-        preserveForm,
-        preserveDetails,
-        pairMode: 'auto',
+        aspectRatio, preserveForm, preserveDetails, pairMode: 'auto',
       };
-
       if (activeTab === 'tasarim') {
         payload.references = {
-          sketch: sketchImage || undefined,
-          sole: soleImage || undefined,
-          leather: leatherImage || undefined,
-          accessory: accessoryImage || undefined,
-          secondary: secondaryImage || undefined,
+          sketch: sketchImage || undefined, sole: soleImage || undefined, leather: leatherImage || undefined,
+          accessory: accessoryImage || undefined, secondary: secondaryImage || undefined,
         };
       }
 
@@ -328,7 +414,12 @@ export default function WorkspacePage() {
         try { return JSON.parse(txt); }
         catch { throw new Error(`Sunucu yanıtı geçersiz (${r.status}). Tekrar deneyin.`); }
       };
-
+      // 402 → kredi yetersiz; CTA göster
+      const ensureOk = (r: Response, d: { error?: string; code?: string }) => {
+        if (r.ok) return;
+        if (r.status === 402 || d.code === 'insufficient_credits') setNeedCredits(true);
+        throw new Error(d.error || `İstek başarısız (${r.status})`);
+      };
       const pollTask = async (taskId: string, totalMs = 240_000): Promise<string> => {
         const start = Date.now();
         let delay = 2000;
@@ -344,111 +435,96 @@ export default function WorkspacePage() {
         throw new Error('Üretim zaman aşımına uğradı');
       };
 
-      // Stage 1
+      // Stage 1 — stüdyo
+      setProgress(activeTab === 'tasarim' ? 'Tasarım hazırlanıyor…' : 'Stüdyo görseli hazırlanıyor…');
       const startRes = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
       const startData = await safeJson(startRes);
-      if (!startRes.ok) throw new Error(startData.error || 'Başlatma hatası');
+      ensureOk(startRes, startData);
       const studioUrl = await pollTask(startData.taskId);
 
-      // ÇOKLU POZ AKIŞI — seçilen her poz için paralel üretim
+      // ÇOKLU POZ — önce tüm task'ları oluştur, localStorage'a yaz (resume), sonra paralel poll et
       if (selectedPoses.length > 0) {
         const seed = Math.floor(Math.random() * 1_000_000_000);
         setMultiResults(selectedPoses.map(id => ({ poseId: id, state: 'pending' })));
+        setProgress(`${selectedPoses.length} poz üretiliyor…`);
 
-        await Promise.all(selectedPoses.map(async (poseId) => {
+        // 1) task'ları oluştur
+        const created: { poseId: string; taskId: string }[] = [];
+        for (const poseId of selectedPoses) {
+          const r = await fetch('/api/generate/vibe', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              studioImageUrl: studioUrl, isDesignMode: startData.isDesignMode, vibe: 'Pose', poseId,
+              shoeType: selectedType, material: 'premium material',
+              prompt: activeTab === 'tasarim' ? designPrompt : undefined,
+              aspectRatio, preserveForm, preserveDetails, seed,
+            }),
+          });
+          const d = await safeJson(r);
+          if (!r.ok) {
+            if (r.status === 402 || d.code === 'insufficient_credits') setNeedCredits(true);
+            setMultiResults(prev => prev.map(p => p.poseId === poseId ? { ...p, state: 'failed', error: d.error || 'Kredi yetersiz' } : p));
+            continue;
+          }
+          created.push({ poseId, taskId: d.taskId });
+        }
+        // 2) resume için kaydet (zaten oluşturulmuş task'lar — yeniden poll kredi düşürmez)
+        writePending({ kind: 'multi', mode: activeTab, shoeType: selectedType, aspectRatio, tasks: created });
+        // 3) paralel poll + kaydet
+        let done = 0;
+        await Promise.all(created.map(async ({ poseId, taskId }) => {
           try {
-            const r = await fetch('/api/generate/vibe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                studioImageUrl: studioUrl,
-                isDesignMode: startData.isDesignMode,
-                vibe: 'Pose',
-                poseId,
-                shoeType: selectedType,
-                material: 'premium material',
-                prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-                aspectRatio,
-                preserveForm,
-                preserveDetails,
-                seed,
-              }),
-            });
-            const d = await safeJson(r);
-            if (!r.ok) throw new Error(d.error || 'Poz başlatma hatası');
-            const url = await pollTask(d.taskId);
-            // Persist
-            await fetch('/api/generate/save', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                resultUrl: url,
-                mode: activeTab,
-                vibe: poseId,
-                shoeType: selectedType,
-                prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-                aspectRatio,
-              }),
-            }).then(rs => safeJson(rs).catch(() => ({}))).then((sd: { generation?: { id: string; created_at: string } }) => {
-              if (sd?.generation) pushHistory(url, sd.generation);
-            });
+            const url = await pollTask(taskId);
+            await saveResult(url, { mode: activeTab, vibe: poseId, shoeType: selectedType, prompt: activeTab === 'tasarim' ? designPrompt : undefined, aspectRatio });
             setMultiResults(prev => prev.map(m => m.poseId === poseId ? { ...m, state: 'success', url } : m));
           } catch (poseErr) {
-            const m = (poseErr as Error).message || 'Hata';
-            setMultiResults(prev => prev.map(p => p.poseId === poseId ? { ...p, state: 'failed', error: m } : p));
+            setMultiResults(prev => prev.map(p => p.poseId === poseId ? { ...p, state: 'failed', error: (poseErr as Error).message || 'Hata' } : p));
+          } finally {
+            done++; setProgress(`Pozlar üretiliyor ${done}/${created.length}…`);
           }
         }));
+        clearPending();
+        try { window.dispatchEvent(new Event('credits:refresh')); } catch {}
         return;
       }
 
+      // TEK ÜRETİM
       let finalUrl = studioUrl;
       const needsVibe = !!selectedVibe && selectedVibe !== 'Stüdyo';
       if (needsVibe) {
-        // Stage 2
+        setProgress('Sahne / atmosfer uygulanıyor…');
         const vibeStart = await fetch('/api/generate/vibe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            studioImageUrl: studioUrl,
-            isDesignMode: startData.isDesignMode,
-            vibe: selectedVibe,
-            shoeType: selectedType,
-            material: 'premium material',
+            studioImageUrl: studioUrl, isDesignMode: startData.isDesignMode, vibe: selectedVibe,
+            shoeType: selectedType, material: 'premium material',
             prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-            aspectRatio,
-            preserveForm,
-            preserveDetails,
+            aspectRatio, preserveForm, preserveDetails,
           }),
         });
         const vibeData = await safeJson(vibeStart);
-        if (!vibeStart.ok) throw new Error(vibeData.error || 'Vibe başlatma hatası');
+        ensureOk(vibeStart, vibeData);
+        // resume kaydı (oluşturulmuş vibe task'ı)
+        writePending({ kind: 'single', mode: activeTab, vibe: selectedVibe, shoeType: selectedType, prompt: activeTab === 'tasarim' ? designPrompt : undefined, aspectRatio, tasks: [{ poseId: '', taskId: vibeData.taskId }] });
         finalUrl = await pollTask(vibeData.taskId);
+      } else {
+        // tek aşamalı: stüdyo task'ı zaten final
+        writePending({ kind: 'single', mode: activeTab, vibe: selectedVibe, shoeType: selectedType, prompt: activeTab === 'tasarim' ? designPrompt : undefined, aspectRatio, tasks: [{ poseId: '', taskId: startData.taskId }] });
       }
 
-      // Persist
-      const saveRes = await fetch('/api/generate/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resultUrl: finalUrl,
-          mode: activeTab,
-          vibe: selectedVibe,
-          shoeType: selectedType,
-          prompt: activeTab === 'tasarim' ? designPrompt : undefined,
-          aspectRatio,
-        }),
-      });
-      const saveData = await safeJson(saveRes).catch(() => ({}));
+      setProgress('Kaydediliyor…');
+      const saveData = await saveResult(finalUrl, { mode: activeTab, vibe: selectedVibe, shoeType: selectedType, prompt: activeTab === 'tasarim' ? designPrompt : undefined, aspectRatio });
+      clearPending();
       setResult(finalUrl);
-      pushHistory(finalUrl, saveData.generation ?? null);
+      pushHistory(finalUrl, saveData?.generation ?? null);
+      try { window.dispatchEvent(new Event('credits:refresh')); } catch {}
     } catch (err: unknown) {
       setError((err as Error)?.message ?? 'Bilinmeyen hata');
     } finally {
       setLoading(false);
+      setProgress('');
     }
   };
 
@@ -622,7 +698,9 @@ export default function WorkspacePage() {
     if (!retouchOriginalSrc) setRetouchOriginalSrc(source);
     setLoading(true);
     setError(null);
+    setNeedCredits(false);
     setRetouchResult(null);
+    setProgress('Rötuş uygulanıyor…');
     try {
       const safeJson = async (r: Response) => {
         const txt = await r.text();
@@ -659,9 +737,14 @@ export default function WorkspacePage() {
         }),
       });
       const d = await safeJson(r);
-      if (!r.ok) throw new Error(d.error || 'Rötuş başlatma hatası');
+      if (!r.ok) {
+        if (r.status === 402 || d.code === 'insufficient_credits') setNeedCredits(true);
+        throw new Error(d.error || 'Rötuş başlatma hatası');
+      }
+      writePending({ kind: 'single', mode: 'foto', vibe: 'Rötuş', shoeType: selectedType, aspectRatio, tasks: [{ poseId: '', taskId: d.taskId }] });
 
       const url = await pollTask(d.taskId);
+      clearPending();
       setRetouchResult(url);
       setResult(url); // ana önizlemeyi de güncelle
 
@@ -686,10 +769,12 @@ export default function WorkspacePage() {
       });
       const sd = await safeJson(saveRes).catch(() => ({}));
       if (sd?.generation) pushHistory(url, sd.generation);
+      try { window.dispatchEvent(new Event('credits:refresh')); } catch {}
     } catch (e) {
       setError((e as Error).message || 'Rötuş hatası');
     } finally {
       setLoading(false);
+      setProgress('');
     }
   };
 
@@ -725,10 +810,24 @@ export default function WorkspacePage() {
 
       <AppNav />
 
-      <div className="max-w-[1600px] mx-auto p-6 h-[calc(100vh-73px)]">
-        
+      {/* İlk kullanım ipucu (dismissible) */}
+      {showHint && (
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6 pt-4">
+          <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/30 rounded-2xl p-4 flex items-start gap-3">
+            <span className="text-xl">👋</span>
+            <div className="flex-1 text-sm text-zinc-300">
+              <strong className="text-white">3 adımda başla:</strong> 1) Sol panelden ayakkabı fotoğrafını yükle · 2) Senaryo/poz seç · 3) Üret butonuna bas. Her üretimin kredi maliyeti butonda yazar; sekmeyi kapatsan bile sonuç korunur.
+            </div>
+            <button onClick={() => { setShowHint(false); try { localStorage.setItem('fasheone:hint-seen', '1'); } catch {} }} className="text-zinc-500 hover:text-white text-lg leading-none shrink-0">×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobilde panel sabit yükseklik yerine doğal akış; lg'de tam ekran 3-panel */}
+      <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:h-[calc(100vh-73px)]">
+
         {/* 3-Panel Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-full">
           
           {/* LEFT PANEL - CONFIGURATION */}
           <div className="lg:col-span-3 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
@@ -1348,8 +1447,8 @@ export default function WorkspacePage() {
             {loading && (
               <div className="absolute inset-0 z-20 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center">
                 <div className="w-16 h-16 border-4 border-zinc-800 border-t-indigo-500 border-l-purple-500 rounded-full animate-spin mb-6"></div>
-                <div className="text-lg font-medium text-zinc-100 animate-pulse tracking-wide">Üretim Motoru Aktif</div>
-                <div className="text-sm text-zinc-400 mt-2">Doku aslına uygun şekilde korunuyor, dinamik arka plan oluşturuluyor...</div>
+                <div className="text-lg font-medium text-zinc-100 animate-pulse tracking-wide">{progress || 'Üretim Motoru Aktif'}</div>
+                <div className="text-sm text-zinc-400 mt-2">Doku aslına uygun şekilde korunuyor, sekmeyi kapatsan bile sonuç korunur.</div>
               </div>
             )}
 
@@ -1457,9 +1556,16 @@ export default function WorkspacePage() {
             )}
 
             {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400 flex items-start gap-3">
-                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                {error}
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400 flex flex-col gap-3">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  {error}
+                </div>
+                {needCredits && (
+                  <Link href="/pricing" className="self-start px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+                    Kredi Al →
+                  </Link>
+                )}
               </div>
             )}
 
@@ -1493,13 +1599,12 @@ export default function WorkspacePage() {
                       : 'bg-zinc-100 hover:bg-white text-zinc-900 border border-white hover:scale-[1.02]'
                 }`}
               >
-                {loading ? 'İşleniyor...' : selectedPoses.length > 0 ? (
-                  <>{selectedPoses.length} Poz Üret ({selectedPoses.length} Kredi)</>
-                ) : (
-                  <>
-                     {activeTab === 'foto' ? 'Stüdyo Çekimi Üret (1 Kredi)' : 'Sıfırdan Tasarım Üret (2 Kredi)'}
-                  </>
-                )}
+                {loading ? (progress || 'İşleniyor...') : (() => {
+                  const cost = studioCost({ poses: selectedPoses.length, vibe: selectedVibe });
+                  const krediLbl = `${cost} Kredi`;
+                  if (selectedPoses.length > 0) return `${selectedPoses.length} Poz Üret (${krediLbl})`;
+                  return activeTab === 'foto' ? `Stüdyo Çekimi Üret (${krediLbl})` : `Sıfırdan Tasarım Üret (${krediLbl})`;
+                })()}
               </button>
             )}
 

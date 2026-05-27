@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef, useState } from 'react';
+import Link from 'next/link';
 import JSZip from 'jszip';
 import AppNav from '../_components/AppNav';
 import PoseGrid, { POSE_LIST } from '../_components/PoseGrid';
@@ -52,6 +53,7 @@ export default function BatchPage() {
   const [running, setRunning] = useState(false);
   const [zipBusy, setZipBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needCredits, setNeedCredits] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef<{ aborted: boolean }>({ aborted: false });
 
@@ -107,6 +109,7 @@ export default function BatchPage() {
     if (shoes.length === 0 || selectedPoses.length === 0) return;
     setRunning(true);
     setError(null);
+    setNeedCredits(false);
     cancelRef.current.aborted = false;
 
     // İnit: her ayakkabıya seçili pozları pending olarak bas
@@ -137,7 +140,10 @@ export default function BatchPage() {
           }),
         });
         const startData = await safeJson(startRes);
-        if (!startRes.ok) throw new Error(startData.error || 'Stage 1 hatası');
+        if (!startRes.ok) {
+          if (startRes.status === 402 || startData.code === 'insufficient_credits') setNeedCredits(true);
+          throw new Error(startData.error || 'Stage 1 hatası');
+        }
         const studioUrl = await pollTask(startData.taskId);
         updateCell(shoe.id, 'studio', { state: 'success', url: studioUrl });
 
@@ -166,7 +172,10 @@ export default function BatchPage() {
               }),
             });
             const d = await safeJson(r);
-            if (!r.ok) throw new Error(d.error || 'Vibe hatası');
+            if (!r.ok) {
+              if (r.status === 402 || d.code === 'insufficient_credits') setNeedCredits(true);
+              throw new Error(d.error || 'Vibe hatası');
+            }
             const url = await pollTask(d.taskId);
             updateCell(shoe.id, poseId, { state: 'success', url });
             // Persist (best-effort)
@@ -318,7 +327,12 @@ export default function BatchPage() {
 
             <PoseGrid selected={selectedPoses} onToggle={togglePose} onClear={() => setSelectedPoses([])} />
 
-            {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">{error}</div>}
+            {error && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 flex flex-col gap-2">
+                <span>{error}</span>
+                {needCredits && <Link href="/pricing" className="self-start px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">Kredi Al →</Link>}
+              </div>
+            )}
 
             <div className="flex gap-2">
               {!running ? (

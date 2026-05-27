@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 import { CREDIT_PACKAGES, type PackageId } from '@/lib/credits';
+import { rateLimit } from '@/lib/rateLimit';
 
 export const maxDuration = 26;
 
@@ -10,6 +11,9 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Giriş yapmanız gerekiyor' }, { status: 401 });
+
+    const rl = rateLimit(`checkout:${user.id}`, 12, 60_000);
+    if (!rl.ok) return NextResponse.json({ error: 'Çok fazla istek, biraz sonra deneyin.' }, { status: 429 });
 
     const secret = process.env.STRIPE_SECRET_KEY;
     if (!secret) return NextResponse.json({ error: 'Ödeme sistemi yapılandırılmamış (STRIPE_SECRET_KEY)' }, { status: 500 });
