@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client';
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || '/studio';
+  // Open redirect koruması: yalnızca site-içi path'e izin ver ('//' ile başlayan protocol-relative dahil reddet)
+  const rawNext = params.get('next') || '/studio';
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/studio';
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
