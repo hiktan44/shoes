@@ -47,20 +47,20 @@ export default function AppNav() {
   };
 
   return (
-    <nav className="border-b border-white/5 px-6 py-3 flex items-center justify-between bg-black/20 backdrop-blur-md sticky top-0 z-50">
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-3">
+    <nav className="border-b border-white/5 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between bg-black/20 backdrop-blur-md sticky top-0 z-50 pt-[max(env(safe-area-inset-top),0.625rem)]">
+      <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/20">F</div>
-          <span className="font-semibold text-xl tracking-tight">Fasheone <span className="text-zinc-500 font-normal">Shoes</span></span>
+          <span className="font-semibold text-lg sm:text-xl tracking-tight hidden xs:inline">Fasheone <span className="text-zinc-500 font-normal hidden sm:inline">Shoes</span></span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar -mx-1 px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map(t => {
             const active = pathname.startsWith(t.href);
             return (
               <Link
                 key={t.href}
                 href={t.href}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition border ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition border whitespace-nowrap ${
                   active
                     ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-200'
                     : 'border-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'
@@ -72,7 +72,7 @@ export default function AppNav() {
           })}
         </div>
       </div>
-      <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-2 sm:gap-4 text-sm shrink-0">
         <Link
           href="/pricing"
           className="px-3 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/25 transition text-xs font-medium flex items-center gap-1.5"

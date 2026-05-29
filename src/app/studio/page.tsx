@@ -830,7 +830,7 @@ export default function WorkspacePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-full">
           
           {/* LEFT PANEL - CONFIGURATION */}
-          <div className="lg:col-span-3 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="lg:col-span-3 flex flex-col gap-6 lg:overflow-y-auto lg:pr-2 lg:custom-scrollbar">
             
             {/* Tabs */}
             <div className="flex gap-1.5 bg-zinc-900/50 p-1.5 rounded-xl border border-zinc-800/80">
