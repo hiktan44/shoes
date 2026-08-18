@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 
 const PUBLIC_PATHS = ['/login', '/auth', '/api/health', '/api/stripe/webhook', '/api/cron', '/pricing'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -21,21 +21,21 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Session refresh
   const { data: { user } } = await supabase.auth.getUser();
-
   const { pathname } = request.nextUrl;
-  // Landing page ('/') herkese açık (exact). Diğer public path'ler prefix eşleşir.
-  const isPublic = pathname === '/' || PUBLIC_PATHS.some(p => pathname.startsWith(p));
+  const isPublic = pathname === '/' || PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
   if (!user && !isPublic) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Giriş yapmanız gerekiyor' }, { status: 401 });
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 
-  // Giriş yapmış kullanıcı login'e gelirse stüdyoya al
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = '/studio';

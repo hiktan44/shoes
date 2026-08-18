@@ -55,7 +55,15 @@ function PricingInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageId }),
       });
-      const data = await res.json();
+      if (res.status === 401) {
+        router.push('/login?next=/pricing');
+        return;
+      }
+
+      const contentType = res.headers.get('content-type') ?? '';
+      const data = contentType.includes('application/json')
+        ? await res.json()
+        : { error: (await res.text()) || 'Ödeme başlatılamadı' };
       if (!res.ok) throw new Error(data.error || 'Ödeme başlatılamadı');
       if (data.url) window.location.href = data.url;
     } catch (e) {
