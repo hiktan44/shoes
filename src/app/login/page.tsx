@@ -2,6 +2,7 @@
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Link from 'next/link';
 
 function LoginForm() {
   const router = useRouter();
@@ -10,13 +11,14 @@ function LoginForm() {
   const rawNext = params.get('next') || '/studio';
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/studio';
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>(() => params.get('mode') === 'signup' ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(params.get('error'));
   const [info, setInfo] = useState<string | null>(null);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   const signInWithGoogle = async () => {
     setGoogleLoading(true);
@@ -102,7 +104,7 @@ function LoginForm() {
         <button
           type="button"
           onClick={signInWithGoogle}
-          disabled={googleLoading || loading}
+          disabled={googleLoading || loading || (mode === 'signup' && !acceptedLegal)}
           className="w-full p-3 bg-white hover:bg-zinc-100 text-zinc-900 rounded-lg font-medium flex items-center justify-center gap-2.5 disabled:opacity-60 transition"
         >
           {googleLoading ? (
@@ -125,34 +127,57 @@ function LoginForm() {
         </div>
 
         <div>
-          <label className="text-xs text-zinc-400 mb-1 block">E-posta</label>
+          <label htmlFor="email" className="text-xs text-zinc-300 mb-1 block">E-posta</label>
           <input
+            id="email"
+            name="email"
             type="email"
             required
             value={email}
             onChange={e => setEmail(e.target.value)}
+            aria-describedby={error ? 'auth-error' : undefined}
             className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500"
           />
         </div>
 
         <div>
-          <label className="text-xs text-zinc-400 mb-1 block">Şifre</label>
+          <label htmlFor="password" className="text-xs text-zinc-300 mb-1 block">Şifre</label>
           <input
+            id="password"
+            name="password"
             type="password"
             required
             minLength={6}
             value={password}
             onChange={e => setPassword(e.target.value)}
+            aria-describedby={error ? 'auth-error' : 'password-help'}
             className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500"
           />
+          <p id="password-help" className="mt-1 text-xs text-zinc-400">En az 6 karakter.</p>
         </div>
 
-        {error && <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5">{error}</div>}
-        {info && <div className="text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5">{info}</div>}
+        {mode === 'signup' && (
+          <label className="flex items-start gap-2 text-xs leading-relaxed text-zinc-300">
+            <input
+              type="checkbox"
+              checked={acceptedLegal}
+              onChange={(event) => setAcceptedLegal(event.target.checked)}
+              required
+              className="mt-0.5 h-4 w-4 accent-indigo-500"
+            />
+            <span>
+              <Link href="/terms" className="text-indigo-300 underline">Kullanım Şartları</Link> ve{' '}
+              <Link href="/privacy" className="text-indigo-300 underline">Gizlilik Politikası</Link>’nı okudum ve kabul ediyorum.
+            </span>
+          </label>
+        )}
+
+        {error && <div id="auth-error" role="alert" aria-live="assertive" className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{error}</div>}
+        {info && <div role="status" aria-live="polite" className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{info}</div>}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (mode === 'signup' && !acceptedLegal)}
           className="w-full p-3 bg-zinc-100 hover:bg-white text-zinc-900 rounded-lg font-medium disabled:opacity-50"
         >
           {loading ? 'Bekleyin…' : mode === 'signin' ? 'Giriş Yap' : 'Hesap Oluştur'}
@@ -165,6 +190,11 @@ function LoginForm() {
         >
           {mode === 'signin' ? 'Hesabın yok mu? Kayıt ol' : 'Zaten hesabın var mı? Giriş yap'}
         </button>
+
+        <p className="text-center text-xs leading-relaxed text-zinc-400">
+          Fasheone Shoes ayrı bir ürün hesabı kullanır; fasheone.com hesabınız burada otomatik olarak ortak değildir.
+          {next !== '/studio' && <> Girişten sonra <strong className="text-zinc-200">{next}</strong> sayfasına döneceksiniz.</>}
+        </p>
       </form>
     </div>
   );

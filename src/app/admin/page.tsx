@@ -96,7 +96,10 @@ export default function AdminPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const adjust = async (u: UserRow) => {
     const v = window.prompt(`${u.email}\nMevcut: ${u.credits} kredi\n\n+/- kredi miktarı gir (örn: 50 veya -20):`, '');

@@ -897,7 +897,7 @@ export default function WorkspacePage() {
                     <input type="file" ref={retouchSourceRef} className="hidden" accept="image/*" onChange={e => handleFile(e, setRetouchSource)} />
                   </div>
                   {result && !retouchSource && (
-                    <p className="mt-2 text-[10px] text-cyan-400/70">↑ Son üretilen sonuç otomatik seçildi. Hover'la "Değiştir"e tıklayarak başka görsel yükleyebilirsin.</p>
+                    <p className="mt-2 text-[10px] text-cyan-400/70">↑ Son üretilen sonuç otomatik seçildi. Üzerine gelip &quot;Değiştir&quot;e tıklayarak başka görsel yükleyebilirsin.</p>
                   )}
                 </div>
 

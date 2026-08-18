@@ -91,7 +91,7 @@ export default function Landing() {
     supabase.auth.getUser().then(({ data }) => setAuthed(!!data.user)).catch(() => setAuthed(false));
   }, []);
 
-  const primaryHref = authed ? '/studio' : '/login';
+  const primaryHref = authed ? '/studio' : '/login?mode=signup';
   const primaryLabel = authed ? 'Stüdyoya Git' : 'Ücretsiz Başla';
 
   return (
@@ -294,8 +294,10 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="hover:text-zinc-900">Fiyatlandırma</Link>
-            <Link href="/login" className="hover:text-zinc-900">Giriş</Link>
-            <a href="mailto:info@fasheone.com" className="hover:text-zinc-900">İletişim</a>
+            <Link href="/privacy" className="hover:text-zinc-900">Gizlilik</Link>
+            <Link href="/terms" className="hover:text-zinc-900">Şartlar</Link>
+            <Link href="/cookies" className="hover:text-zinc-900">Çerezler</Link>
+            <Link href="/contact" className="hover:text-zinc-900">İletişim</Link>
           </div>
           <div>© {new Date().getFullYear()} Fasheone</div>
         </div>
