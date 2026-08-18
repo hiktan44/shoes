@@ -22,6 +22,7 @@ export const metadata: Metadata = {
   description:
     "Telefonla çektiğin ayakkabı fotoğrafını satışa hazır stüdyo görseline, modelin ayağında pozlara, sıfır tasarımlara ve e-ticaret metinlerine dönüştür. Türkçe, hızlı, ürününe sadık.",
   keywords: ["ayakkabı fotoğraf", "ürün görseli", "e-ticaret", "AI tasarım", "stüdyo çekimi", "Fasheone"],
+  alternates: { canonical: "/" },
   applicationName: "Fasheone Shoes",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -44,6 +45,13 @@ export const metadata: Metadata = {
     siteName: "Fasheone Shoes",
     locale: "tr_TR",
     type: "website",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Fasheone Shoes" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fasheone Shoes — AI görsel stüdyosu",
+    description: "Ayakkabı markaları için satışa hazır AI ürün görselleri.",
+    images: ["/opengraph-image"],
   },
   robots: { index: true, follow: true },
 };
