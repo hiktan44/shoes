@@ -61,7 +61,7 @@ function LoginForm() {
       setLoading(false);
       // Rate limit'e özel, anlaşılır mesaj
       if (/rate limit/i.test(error.message)) {
-        setError('E-posta gönderim limiti doldu. Yönetici e-posta onayını kapatmalı (Supabase → Authentication → Confirm email) ya da birkaç dakika sonra tekrar dene.');
+        setError('E-posta gönderim limiti doldu. Yönetici e-posta onayını kapatmalı (Supabase → Authentication → Confirm email) ya da birkaç dakika sonra tekrar dene.'); // Keeping error messages as-is for technical accuracy
       } else {
         setError(error.message);
       }
@@ -100,7 +100,7 @@ function LoginForm() {
           <span className="font-semibold text-lg">Fasheone <span className="text-zinc-500">Shoes</span></span>
         </div>
         <h1 className="text-xl font-semibold">
-          {mode === 'signin' ? t('auth.signIn') : t('auth.signUp')}
+          {mode === 'signin' ? 'Giriş Yap' : 'Hesap Oluştur'}
         </h1>
 
         <button
@@ -119,17 +119,17 @@ function LoginForm() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
           )}
-          {mode === 'signin' ? t('auth.googleButton') : t('auth.googleButtonUp')}
+          Google ile {mode === 'signin' ? 'Giriş Yap' : 'Devam Et'}
         </button>
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-zinc-800" />
-          <span className="text-xs text-zinc-500">{t('auth.orEmail')}</span>
+          <span className="text-xs text-zinc-500">veya e-posta ile</span>
           <div className="flex-1 h-px bg-zinc-800" />
         </div>
 
         <div>
-          <label htmlFor="email" className="text-xs text-zinc-300 mb-1 block">{t('auth.email')}</label>
+          <label htmlFor="email" className="text-xs text-zinc-300 mb-1 block">E-posta</label>
           <input
             id="email"
             name="email"
@@ -143,7 +143,7 @@ function LoginForm() {
         </div>
 
         <div>
-          <label htmlFor="password" className="text-xs text-zinc-300 mb-1 block">{t('auth.password')}</label>
+          <label htmlFor="password" className="text-xs text-zinc-300 mb-1 block">Şifre</label>
           <input
             id="password"
             name="password"
@@ -155,7 +155,7 @@ function LoginForm() {
             aria-describedby={error ? 'auth-error' : 'password-help'}
             className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500"
           />
-          <p id="password-help" className="mt-1 text-xs text-zinc-400">{t('auth.passwordHelp')}</p>
+          <p id="password-help" className="mt-1 text-xs text-zinc-400">En az 6 karakter.</p>
         </div>
 
         {mode === 'signup' && (
@@ -168,8 +168,8 @@ function LoginForm() {
               className="mt-0.5 h-4 w-4 accent-indigo-500"
             />
             <span>
-              <Link href="/terms" className="text-indigo-300 underline">{t('nav.terms')}</Link> {'ve'} {' '}
-              <Link href="/privacy" className="text-indigo-300 underline">{t('nav.privacy')}</Link> {t('auth.legalAgree')}
+              <Link href="/terms" className="text-indigo-300 underline">Kullanım Şartları</Link> ve{' '}
+              <Link href="/privacy" className="text-indigo-300 underline">Gizlilik Politikası</Link>’nı okudum ve kabul ediyorum.
             </span>
           </label>
         )}
@@ -182,7 +182,7 @@ function LoginForm() {
           disabled={loading || (mode === 'signup' && !acceptedLegal)}
           className="w-full p-3 bg-zinc-100 hover:bg-white text-zinc-900 rounded-lg font-medium disabled:opacity-50"
         >
-          {loading ? t('auth.loading') : mode === 'signin' ? t('auth.signIn') : t('auth.signUp')}
+          {loading ? 'Bekleyin…' : mode === 'signin' ? 'Giriş Yap' : 'Hesap Oluştur'}
         </button>
 
         <button
@@ -190,12 +190,12 @@ function LoginForm() {
           onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setInfo(null); }}
           className="w-full text-sm text-zinc-400 hover:text-zinc-200"
         >
-          {mode === 'signin' ? t('auth.signInUp') : t('auth.upIn')}
+          {mode === 'signin' ? 'Hesabın yok mu? Kayıt ol' : 'Zaten hesabın var mı? Giriş yap'}
         </button>
 
         <p className="text-center text-xs leading-relaxed text-zinc-400">
-          {t('auth.note')}
-          {next !== '/studio' && <> {t('auth.nextPage')} <strong className="text-zinc-200">{next}</strong> {t('auth.page')}</>}
+          Fasheone Shoes ayrı bir ürün hesabı kullanır; fasheone.com hesabınız burada otomatik olarak ortak değildir.
+          {next !== '/studio' && <> Girişten sonra <strong className="text-zinc-200">{next}</strong> sayfasına döneceksiniz.</>}
         </p>
       </form>
     </div>

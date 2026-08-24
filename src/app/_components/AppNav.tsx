@@ -3,16 +3,19 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useT } from '@/lib/i18n';
+import LangSwitch from '@/components/LangSwitch';
 
 const TABS = [
-  { href: '/studio',  label: 'Stüdyo' },
-  { href: '/analyze', label: 'Ürün Analizi' },
-  { href: '/batch',   label: 'Toplu Üretim' },
+  { href: '/studio',  labelKey: 'app.studio' },
+  { href: '/analyze', labelKey: 'app.analyze' },
+  { href: '/batch',   labelKey: 'app.batch' },
 ];
 
 export default function AppNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useT();
   const supabase = React.useMemo(() => createClient(), []);
   const [email, setEmail] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
@@ -54,41 +57,42 @@ export default function AppNav() {
           <span className="font-semibold text-lg sm:text-xl tracking-tight hidden xs:inline">Fasheone <span className="text-zinc-500 font-normal hidden sm:inline">Shoes</span></span>
         </div>
         <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar -mx-1 px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TABS.map(t => {
-            const active = pathname.startsWith(t.href);
+          {TABS.map(tab => {
+            const active = pathname.startsWith(tab.href);
             return (
               <Link
-                key={t.href}
-                href={t.href}
+                key={tab.href}
+                href={tab.href}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition border whitespace-nowrap ${
                   active
                     ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-200'
                     : 'border-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'
                 }`}
               >
-                {t.label}
+                {t(tab.labelKey as any)}
               </Link>
             );
           })}
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-4 text-sm shrink-0">
+        <LangSwitch />
         <Link
           href="/pricing"
           className="px-3 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/25 transition text-xs font-medium flex items-center gap-1.5"
-          title="Kredi satın al"
+          title={t('app.creditsLoad')}
         >
           <span className="text-indigo-300">◆</span>
-          {credits !== null ? `${credits} kredi` : 'Kredi'}
-          <span className="text-indigo-400/70 hidden sm:inline">· Yükle</span>
+          {credits !== null ? `${credits} ${t('app.credits')}` : t('app.credits')}
+          <span className="text-indigo-400/70 hidden sm:inline">{t('app.creditsLoad')}</span>
         </Link>
         {isAdmin && (
           <Link href="/admin" className="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25 transition text-xs font-medium">
-            🛡️ Admin
+            🛡️ {t('app.admin')}
           </Link>
         )}
         {email && <span className="text-zinc-500 text-xs hidden md:inline" title={email}>{email}</span>}
-        <button onClick={signOut} className="text-zinc-400 hover:text-white transition" title="Çıkış">Çıkış</button>
+        <button onClick={signOut} className="text-zinc-400 hover:text-white transition" title={t('app.logout')}>{t('app.logout')}</button>
         <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-300">
           {email ? email[0].toUpperCase() : '?'}
         </div>
