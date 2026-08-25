@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import Link from 'next/link';
 import AppNav from '../_components/AppNav';
+import { useT } from '@/lib/i18n';
 
 const SHOE_TYPES = ['Genel Ayakkabı', 'Sneaker', 'Boots', 'Heels', 'Loafers', 'Sandals', 'Kids Shoes'];
 
@@ -62,6 +63,7 @@ ${r.marketing_long}
 }
 
 export default function AnalyzePage() {
+  const { t } = useT();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [shoeType, setShoeType] = useState('Genel Ayakkabı');
   const [language, setLanguage] = useState<'tr' | 'en'>('tr');
@@ -126,9 +128,9 @@ export default function AnalyzePage() {
   const copyText = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showToast(`${label} kopyalandı ✓`);
+      showToast(`${label} ${t('analyze.copied')}`);
     } catch {
-      showToast('Kopyalama başarısız');
+      showToast(t('analyze.copyFailed'));
     }
   };
 
@@ -158,8 +160,8 @@ export default function AnalyzePage() {
           {/* INPUT */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
-              <h2 className="text-lg font-semibold mb-1">Ürün Analizi</h2>
-              <p className="text-xs text-zinc-500 mb-4">Bir ayakkabı görseli yükle, e-ticaret listemesi için detaylı çıktı al.</p>
+              <h2 className="text-lg font-semibold mb-1">{t('analyze.title')}</h2>
+              <p className="text-xs text-zinc-500 mb-4">{t('analyze.description')}</p>
 
               <div
                 className={`relative flex flex-col items-center justify-center w-full h-44 border-2 border-dashed rounded-xl cursor-pointer transition-all ${imagePreview ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'}`}
@@ -173,13 +175,13 @@ export default function AnalyzePage() {
                 ) : (
                   <div className="text-center px-4">
                     <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-2 text-zinc-400">📷</div>
-                    <span className="text-sm font-medium text-zinc-300">Görsel Yükle</span>
+                    <span className="text-sm font-medium text-zinc-300">{t('analyze.upload')}</span>
                   </div>
                 )}
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
               </div>
               {imagePreview && (
-                <button onClick={() => { setImagePreview(null); setResult(null); }} className="mt-2 text-xs text-red-400 hover:text-red-300">Temizle</button>
+                <button onClick={() => { setImagePreview(null); setResult(null); }} className="mt-2 text-xs text-red-400 hover:text-red-300">{t('analyze.clear')}</button>
               )}
 
               <div className="mt-4 space-y-3">
@@ -194,10 +196,10 @@ export default function AnalyzePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Çıktı Dili</label>
+                  <label className="text-xs text-zinc-400 mb-1 block">{t('analyze.outputLanguage')}</label>
                   <div className="flex gap-2">
-                    <button onClick={() => setLanguage('tr')} className={`flex-1 py-2 text-sm rounded-lg border ${language === 'tr' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-200' : 'border-zinc-700 text-zinc-400'}`}>Türkçe</button>
-                    <button onClick={() => setLanguage('en')} className={`flex-1 py-2 text-sm rounded-lg border ${language === 'en' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-200' : 'border-zinc-700 text-zinc-400'}`}>English</button>
+                    <button onClick={() => setLanguage('tr')} className={`flex-1 py-2 text-sm rounded-lg border ${language === 'tr' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-200' : 'border-zinc-700 text-zinc-400'}`}>{t('analyze.turkish')}</button>
+                    <button onClick={() => setLanguage('en')} className={`flex-1 py-2 text-sm rounded-lg border ${language === 'en' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-200' : 'border-zinc-700 text-zinc-400'}`}>{t('analyze.english')}</button>
                   </div>
                 </div>
               </div>
@@ -205,7 +207,7 @@ export default function AnalyzePage() {
               {error && (
                 <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 flex flex-col gap-2">
                   <span>{error}</span>
-                  {needCredits && <Link href="/pricing" className="self-start px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">Kredi Al →</Link>}
+                  {needCredits && <Link href="/pricing" className="self-start px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">{t('error.buyCredits')}</Link>}
                 </div>
               )}
 
@@ -218,7 +220,7 @@ export default function AnalyzePage() {
               >
                 {loading ? (
                   <><span className="w-4 h-4 border-2 border-zinc-500 border-t-zinc-900 rounded-full animate-spin"></span> Analiz Ediliyor…</>
-                ) : 'Analiz Et'}
+                ) : t('analyze.analyzeButton')}
               </button>
             </div>
           </div>
@@ -227,7 +229,7 @@ export default function AnalyzePage() {
           <div className="lg:col-span-8 space-y-4">
             {!result && !loading && (
               <div className="bg-zinc-900/30 border border-zinc-800/40 rounded-2xl p-12 text-center text-zinc-500">
-                Görsel yükle → &ldquo;Analiz Et&rdquo; → ürün listesi çıktısı burada görünecek.
+                {t('analyze.placeholder')}
               </div>
             )}
 

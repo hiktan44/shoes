@@ -1,7 +1,7 @@
 import { LegalPage } from '../_components/LegalPage';
 
 export default function PrivacyPage() {
-  return <LegalPage title="Gizlilik Politikası">
+  return <LegalPage titleKey="nav.privacy">
     <p>Hesap bilgileriniz, yüklediğiniz ürün görselleri ve üretim talimatları hizmeti sunmak, güvenliği sağlamak ve destek vermek için işlenir.</p>
     <p>Kimlik doğrulama ve veri saklama altyapısında Supabase; ödeme işlemlerinde Stripe; yapay zekâ üretiminde yapılandırılmış model sağlayıcıları kullanılabilir. Ödeme kartı verileri Fasheone Shoes sunucularında saklanmaz.</p>
     <p>Yüklemeleriniz yalnızca talep ettiğiniz çıktıyı üretmek amacıyla yetkili sağlayıcılara aktarılır. Yasal zorunluluk dışında kişisel veriler satılmaz.</p>

@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import AppNav from '../_components/AppNav';
 import PoseGrid, { POSE_LIST } from '../_components/PoseGrid';
 import { pLimit } from '@/lib/concurrency';
+import { useT } from '@/lib/i18n';
 
 const SHOE_TYPES = ['Genel Ayakkabı', 'Sneaker', 'Boots', 'Heels', 'Loafers', 'Sandals', 'Kids Shoes'];
 const MAX_SHOES = 30;
@@ -45,6 +46,7 @@ async function pollTask(taskId: string, totalMs = 240_000): Promise<string> {
 }
 
 export default function BatchPage() {
+  const { t } = useT();
   const [shoes, setShoes] = useState<BatchShoe[]>([]);
   const [selectedPoses, setSelectedPoses] = useState<string[]>([]);
   const [shoeType, setShoeType] = useState('Genel Ayakkabı');
@@ -153,7 +155,7 @@ export default function BatchPage() {
         const poseLimit = pLimit(3);
         await Promise.all(selectedPoses.map(poseId => poseLimit(async () => {
           if (cancelRef.current.aborted) {
-            updateCell(shoe.id, poseId, { state: 'failed', error: 'İptal edildi' });
+            updateCell(shoe.id, poseId, { state: 'failed', error: t('batch.cancelled') });
             return;
           }
           try {
@@ -248,7 +250,7 @@ export default function BatchPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
     } catch (e) {
-      setError((e as Error).message || 'ZIP hatası');
+      setError((e as Error).message || t('batch.zipError'));
     } finally {
       setZipBusy(false);
     }
@@ -265,8 +267,8 @@ export default function BatchPage() {
           {/* LEFT — settings */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5">
-              <h2 className="text-lg font-semibold mb-1">Toplu Üretim</h2>
-              <p className="text-xs text-zinc-500 mb-4">30&apos;a kadar ayakkabı yükle, seçtiğin pozlar her birine uygulanır. Aynı model + aynı kıyafet kilidi otomatik aktif.</p>
+              <h2 className="text-lg font-semibold mb-1">{t('batch.title')}</h2>
+              <p className="text-xs text-zinc-500 mb-4">{t('batch.description')}</p>
 
               <div
                 className={`relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${shoes.length >= MAX_SHOES ? 'border-zinc-800 bg-zinc-900/40 cursor-not-allowed' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50'}`}
@@ -276,8 +278,8 @@ export default function BatchPage() {
               >
                 <div className="text-center px-4">
                   <div className="text-2xl mb-1">📁</div>
-                  <span className="text-sm font-medium text-zinc-300">Görsel(ler) Yükle</span>
-                  <div className="text-xs text-zinc-500 mt-1">{shoes.length} / {MAX_SHOES} ayakkabı</div>
+                  <span className="text-sm font-medium text-zinc-300">{t('batch.upload')}</span>
+                  <div className="text-xs text-zinc-500 mt-1">{shoes.length} / {MAX_SHOES} {t('batch.shoes')}</div>
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
               </div>
@@ -304,13 +306,13 @@ export default function BatchPage() {
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Tip</label>
+                  <label className="text-xs text-zinc-400 mb-1 block">{t('batch.type')}</label>
                   <select value={shoeType} onChange={e => setShoeType(e.target.value)} className="w-full bg-zinc-800/50 border border-zinc-700 text-xs rounded p-1.5 outline-none focus:border-indigo-500">
                     {SHOE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Aspect</label>
+                  <label className="text-xs text-zinc-400 mb-1 block">{t('batch.aspect')}</label>
                   <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value as '1:1' | '4:5' | '16:9')} className="w-full bg-zinc-800/50 border border-zinc-700 text-xs rounded p-1.5 outline-none focus:border-indigo-500">
                     <option value="1:1">1:1</option>
                     <option value="4:5">4:5</option>
@@ -321,7 +323,7 @@ export default function BatchPage() {
 
               <label className="mt-3 flex items-center gap-2 text-xs cursor-pointer">
                 <input type="checkbox" checked={pairAuto} onChange={e => setPairAuto(e.target.checked)} className="accent-indigo-500" />
-                <span className="text-zinc-300">Tek tekli ayakkabıyı otomatik çift yap</span>
+                <span className="text-zinc-300">{t('batch.autoPair')}</span>
               </label>
             </div>
 
@@ -345,11 +347,11 @@ export default function BatchPage() {
                       : 'bg-zinc-100 hover:bg-white text-zinc-900'
                   }`}
                 >
-                  Toplu Üret ({shoes.length} × {selectedPoses.length} = {shoes.length * selectedPoses.length} görsel)
+                  {t('batch.produceButton')} ({shoes.length} × {selectedPoses.length} = {shoes.length * selectedPoses.length} {t('batch.images')})
                 </button>
               ) : (
                 <button onClick={cancelBatch} className="flex-1 p-3 rounded-xl font-semibold text-sm bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-200">
-                  İptal Et
+                  {t('batch.cancelButton')}
                 </button>
               )}
               <button
@@ -366,14 +368,14 @@ export default function BatchPage() {
           <div className="lg:col-span-8 space-y-3">
             {shoes.length === 0 ? (
               <div className="bg-zinc-900/30 border border-zinc-800/40 rounded-2xl p-12 text-center text-zinc-500">
-                Soldan ayakkabı(lar) yükle ve poz seç → &ldquo;Toplu Üret&rdquo; → her ayakkabı için durum burada gerçek zamanlı görünür.
+                {t('batch.placeholder')}
               </div>
             ) : (
               <>
                 {totalTarget > 0 && (
                   <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4">
                     <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="text-zinc-300 font-medium">İlerleme</span>
+                      <span className="text-zinc-300 font-medium">{t('batch.progress')}</span>
                       <span className="text-emerald-300">{totalDone} / {totalTarget}</span>
                     </div>
                     <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -394,7 +396,7 @@ export default function BatchPage() {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{idx + 1}. {shoe.name}</div>
                         <div className="text-[10px] text-zinc-500">
-                          Stage 1: <span className={shoe.studio.state === 'success' ? 'text-emerald-300' : shoe.studio.state === 'failed' ? 'text-red-300' : shoe.studio.state === 'pending' ? 'text-amber-300' : 'text-zinc-500'}>{shoe.studio.state}</span>
+                          {t('batch.stage1')}: <span className={shoe.studio.state === 'success' ? 'text-emerald-300' : shoe.studio.state === 'failed' ? 'text-red-300' : shoe.studio.state === 'pending' ? 'text-amber-300' : 'text-zinc-500'}>{shoe.studio.state}</span>
                         </div>
                       </div>
                     </div>

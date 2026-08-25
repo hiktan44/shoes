@@ -1,33 +1,35 @@
 "use client";
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useT } from '@/lib/i18n';
 
 const PACKAGES = [
-  { id: 'SMALL', label: 'Başlangıç', credits: 100, priceTRY: 1399, popular: false },
-  { id: 'MEDIUM', label: 'Standart', credits: 250, priceTRY: 3199, popular: true },
-  { id: 'LARGE', label: 'Profesyonel', credits: 500, priceTRY: 5999, popular: false },
+  { id: 'SMALL', labelKey: 'pricing.plans.basic', credits: 100, priceTRY: 1399, popular: false },
+  { id: 'MEDIUM', labelKey: 'pricing.plans.standard', credits: 250, priceTRY: 3199, popular: true },
+  { id: 'LARGE', labelKey: 'pricing.plans.pro', credits: 500, priceTRY: 5999, popular: false },
 ];
 
 const USAGE = [
-  { label: 'Fotoğraf / Stüdyo Çekimi', cost: '1 kredi' },
-  { label: 'AI Tasarım (sıfırdan model)', cost: '2 kredi' },
-  { label: 'Çoklu Poz (her poz)', cost: '1 kredi' },
-  { label: 'Albüm / Kolaj', cost: '2 kredi' },
-  { label: 'Rötuş (hedefli düzenleme)', cost: '1 kredi' },
-  { label: 'E-Ticaret Analizi', cost: '1 kredi' },
+  { labelKey: 'pricing.usage.photo', cost: '1 kredi' },
+  { labelKey: 'pricing.usage.design', cost: '2 kredi' },
+  { labelKey: 'pricing.usage.pose', cost: '1 kredi' },
+  { labelKey: 'pricing.usage.album', cost: '2 kredi' },
+  { labelKey: 'pricing.usage.retouch', cost: '1 kredi' },
+  { labelKey: 'pricing.usage.analyze', cost: '1 kredi' },
 ];
 
 const PKG_FEATURES = [
-  '✓ Fotoğraf & Stüdyo Çekimi',
-  '✓ AI Sıfırdan Tasarım',
-  '✓ Çoklu Poz Kataloğu (8 poz)',
-  '✓ Albüm / Kolaj Üretimi',
-  '✓ Hedefli Rötuş (maske + referans)',
-  '✓ E-Ticaret Derin Analizi',
-  '✓ Krediler hiç bitmez',
+  'pricing.features.photo',
+  'pricing.features.design',
+  'pricing.features.pose',
+  'pricing.features.album',
+  'pricing.features.retouch',
+  'pricing.features.analyze',
+  'pricing.features.neverExpire',
 ];
 
 function PricingInner() {
+  const { t } = useT();
   const router = useRouter();
   const params = useSearchParams();
   const [balance, setBalance] = useState<number | null>(null);
@@ -40,9 +42,9 @@ function PricingInner() {
       .then(d => { if (d && typeof d.credits === 'number') setBalance(d.credits); })
       .catch(() => {});
     if (params.get('success') === '1') {
-      setNotice({ kind: 'ok', msg: 'Ödeme başarılı! Krediler birkaç saniye içinde hesabınıza yüklenecek.' });
+      setNotice({ kind: 'ok', msg: t('pricing.success') });
     } else if (params.get('canceled') === '1') {
-      setNotice({ kind: 'err', msg: 'Ödeme iptal edildi.' });
+      setNotice({ kind: 'err', msg: t('pricing.canceled') });
     }
   }, [params]);
 
@@ -82,20 +84,20 @@ function PricingInner() {
         <div className="flex items-center gap-4 text-sm">
           {balance !== null && (
             <span className="px-3 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-medium">
-              Bakiye: {balance} kredi
+              {t('pricing.nav.balance')} {balance} {t('pricing.credits')}
             </span>
           )}
-          <button onClick={() => router.push('/')} className="text-zinc-400 hover:text-white transition">← Uygulamaya dön</button>
+          <button onClick={() => router.push('/')} className="text-zinc-400 hover:text-white transition">{t('pricing.nav.back')}</button>
         </div>
       </nav>
 
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Fiyatlandırma</h1>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">{t('pricing.headline')}</h1>
           <p className="text-zinc-400 mt-3 max-w-xl mx-auto">
-            İhtiyacınıza uygun kredi paketini seçin. Abonelik yok — sadece kullandığınız kadar ödersiniz. Krediler hiç bitmez.
+            {t('pricing.subheadline')}
           </p>
-          <p className="text-emerald-400/80 text-sm mt-2">Yeni üyeler 10 ücretsiz kredi ile başlar 🎁</p>
+          <p className="text-emerald-400/80 text-sm mt-2">{t('pricing.newUser')}</p>
         </div>
 
         {notice && (
@@ -120,22 +122,22 @@ function PricingInner() {
             >
               {pkg.popular && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-indigo-500 text-white text-[11px] font-semibold">
-                  Popüler
+                  {t('pricing.popular')}
                 </span>
               )}
-              <h3 className="text-lg font-semibold">{pkg.label}</h3>
+              <h3 className="text-lg font-semibold">{t(pkg.labelKey as any)}</h3>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="text-4xl font-bold">{pkg.priceTRY.toLocaleString('tr-TR')}</span>
                 <span className="text-zinc-400 text-lg">₺</span>
               </div>
-              <div className="mt-1 text-indigo-300 font-medium">{pkg.credits} kredi</div>
+              <div className="mt-1 text-indigo-300 font-medium">{pkg.credits} {t('pricing.credits')}</div>
               <div className="text-xs text-zinc-500 mt-1">
-                ≈ {(pkg.priceTRY / pkg.credits).toFixed(2)} ₺ / kredi
+                ≈ {(pkg.priceTRY / pkg.credits).toFixed(2)} {t('pricing.perCredit')}
               </div>
 
               <ul className="mt-6 space-y-2 flex-1">
                 {PKG_FEATURES.map(f => (
-                  <li key={f} className="text-sm text-zinc-300">{f}</li>
+                  <li key={f} className="text-sm text-zinc-300">{t(f as any)}</li>
                 ))}
               </ul>
 
@@ -148,7 +150,7 @@ function PricingInner() {
                     : 'bg-zinc-100 hover:bg-white text-zinc-900'
                 }`}
               >
-                {loadingPkg === pkg.id ? 'Yönlendiriliyor…' : 'Satın Al'}
+                {loadingPkg === pkg.id ? t('pricing.redirecting') : t('pricing.buy')}
               </button>
             </div>
           ))}
@@ -156,12 +158,12 @@ function PricingInner() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-7">
-            <h3 className="text-lg font-semibold mb-1">💡 Kredi Kullanımı</h3>
-            <p className="text-xs text-zinc-500 mb-4">Her işlemin kredi maliyeti:</p>
+            <h3 className="text-lg font-semibold mb-1">{t('pricing.usageTitle')}</h3>
+            <p className="text-xs text-zinc-500 mb-4">{t('pricing.usageDesc')}</p>
             <div className="divide-y divide-zinc-800/70">
               {USAGE.map(u => (
-                <div key={u.label} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="text-zinc-300">{u.label}</span>
+                <div key={u.labelKey} className="flex items-center justify-between py-2.5 text-sm">
+                  <span className="text-zinc-300">{t(u.labelKey as any)}</span>
                   <span className="text-indigo-300 font-medium">{u.cost}</span>
                 </div>
               ))}
@@ -169,22 +171,22 @@ function PricingInner() {
           </div>
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-7 flex flex-col">
-            <h3 className="text-lg font-semibold mb-1">Kurumsal Çözümler</h3>
+            <h3 className="text-lg font-semibold mb-1">{t('pricing.enterpriseTitle')}</h3>
             <p className="text-sm text-zinc-400 mb-4">
-              Büyük ekipler ve şirketler için özel kredi paketleri, sınırsız kullanıcı, öncelikli destek, özel hesap yöneticisi, API erişimi ve SLA garantisi.
+              {t('pricing.enterpriseDesc')}
             </p>
             <ul className="space-y-1.5 text-sm text-zinc-300 flex-1">
-              <li>✓ Özel Kredi Paketi</li>
-              <li>✓ Sınırsız Kullanıcı</li>
-              <li>✓ Öncelikli Destek & Özel Hesap Yöneticisi</li>
-              <li>✓ API Erişimi & Özel Entegrasyon</li>
-              <li>✓ SLA Garantisi</li>
+              <li>{t('pricing.enterpriseFeature1')}</li>
+              <li>{t('pricing.enterpriseFeature2')}</li>
+              <li>{t('pricing.enterpriseFeature3')}</li>
+              <li>{t('pricing.enterpriseFeature4')}</li>
+              <li>{t('pricing.enterpriseFeature5')}</li>
             </ul>
             <a
               href="mailto:info@fasheone.com?subject=Kurumsal%20Teklif%20-%20Fasheone%20Shoes"
               className="mt-6 w-full p-3 rounded-xl font-semibold text-sm text-center bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
             >
-              İletişime Geç
+              {t('pricing.enterpriseContact')}
             </a>
           </div>
         </div>

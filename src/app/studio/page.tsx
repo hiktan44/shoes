@@ -6,11 +6,12 @@ import JSZip from 'jszip';
 import AppNav from '../_components/AppNav';
 import PoseGrid, { POSE_LIST } from '../_components/PoseGrid';
 import { studioCost } from '@/lib/creditCost';
+import { useT } from '@/lib/i18n';
 
 type HistoryItem = { id: string; url: string; mode: 'foto' | 'tasarim' | 'rotush'; vibe: string | null; ts: number };
 const HISTORY_MAX = 24;
 
-const SHOE_TYPES = ['Genel Ayakkabı', 'Sneaker', 'Boots', 'Heels', 'Loafers', 'Sandals', 'Kids Shoes'];
+const SHOE_TYPES = ['Genel Ayakkabı', 'Sneaker', 'Boots', 'Heels', 'Loafers', 'Sandals', 'Kids Shoes'] as const;
 const SCENES = [
   { id: 'Stüdyo', label: 'Marketplace Stüdyo', desc: 'Saf beyaz fon', icon: '📸' },
   { id: 'Albüm', label: 'Albüm / Kolaj', desc: 'Editoryal katalog', icon: '📓' },
@@ -68,6 +69,7 @@ const RETOUCH_REGIONS = [
 ];
 
 export default function WorkspacePage() {
+  const { t } = useT();
   const [activeTab, setActiveTab] = useState<'foto' | 'tasarim' | 'rotush'>('foto');
 
   // Rötuş state

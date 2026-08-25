@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/i18n';
 
 type UserRow = {
   id: string; email: string; registered_at: string; last_sign_in_at: string | null;
@@ -62,6 +63,7 @@ function BarChart({ data, valueKey, color, format }: {
 }
 
 export default function AdminPage() {
+  const { t } = useT();
   const router = useRouter();
   const [data, setData] = useState<Overview | null>(null);
   const [q, setQ] = useState('');
@@ -165,12 +167,12 @@ export default function AdminPage() {
 
   const s = data?.stats || {};
   const STAT_CARDS = [
-    { label: 'Toplam Kullanıcı', value: s.total_users, icon: '👥' },
-    { label: 'Admin Kullanıcı', value: s.admin_users, icon: '🛡️' },
-    { label: 'Toplam Kredi (bakiye)', value: s.total_credits, icon: '◆' },
-    { label: 'Toplam Üretim', value: s.total_generations, sub: `bugün ${s.today_generations ?? 0}`, icon: '🎨' },
-    { label: 'Toplam Gelir', value: undefined, money: s.total_revenue, sub: `bugün ${fmtMoney(s.today_revenue ?? 0)}`, icon: '💰' },
-    { label: 'Sipariş', value: s.total_orders, icon: '🧾' },
+    { labelKey: 'admin.statUsers', value: s.total_users, icon: '👥' },
+    { labelKey: 'admin.statAdmins', value: s.admin_users, icon: '🛡️' },
+    { labelKey: 'admin.statCredits', value: s.total_credits, icon: '◆' },
+    { labelKey: 'admin.statGenerations', value: s.total_generations, sub: `${t('admin.statToday')} ${s.today_generations ?? 0}`, icon: '🎨' },
+    { labelKey: 'admin.statRevenue', value: undefined, money: s.total_revenue, sub: `${t('admin.statToday')} ${fmtMoney(s.today_revenue ?? 0)}`, icon: '💰' },
+    { labelKey: 'admin.statOrders', value: s.total_orders, icon: '🧾' },
   ];
 
   return (
@@ -182,7 +184,7 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-4 text-sm">
           {data?.me && <span className="text-zinc-500 text-xs">{data.me}</span>}
-          <button onClick={() => router.push('/')} className="text-zinc-400 hover:text-white transition">← Uygulama</button>
+          <button onClick={() => router.push('/')} className="text-zinc-400 hover:text-white transition">{t('admin.back')}</button>
         </div>
       </nav>
 
@@ -190,12 +192,12 @@ export default function AdminPage() {
         {/* Stat kartları */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
           {STAT_CARDS.map(c => (
-            <div key={c.label} className="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4">
+            <div key={c.labelKey} className="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4">
               <div className="text-2xl mb-1">{c.icon}</div>
               <div className="text-2xl font-bold tabular-nums">
                 {loading ? '…' : c.money !== undefined ? fmtMoney(c.money) : (c.value ?? 0).toLocaleString('tr-TR')}
               </div>
-              <div className="text-xs text-zinc-400 mt-0.5">{c.label}</div>
+              <div className="text-xs text-zinc-400 mt-0.5">{t(c.labelKey as any)}</div>
               {c.sub && <div className="text-[10px] text-zinc-600 mt-0.5">{c.sub}</div>}
             </div>
           ))}
@@ -204,15 +206,15 @@ export default function AdminPage() {
         {/* Araç çubuğu — tarih aralığı + CSV export */}
         <div className="flex flex-wrap items-end gap-3 mb-6">
           <div>
-            <label className="block text-[11px] text-zinc-500 mb-1">Başlangıç</label>
+            <label className="block text-[11px] text-zinc-500 mb-1">{t('admin.filterStart')}</label>
             <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200" />
           </div>
           <div>
-            <label className="block text-[11px] text-zinc-500 mb-1">Bitiş</label>
+            <label className="block text-[11px] text-zinc-500 mb-1">{t('admin.filterEnd')}</label>
             <input type="date" value={to} onChange={e => setTo(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200" />
           </div>
-          <button onClick={() => load(q, from, to, { role, status, sort })} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs text-white">Uygula</button>
-          {(from || to) && <button onClick={() => { setFrom(''); setTo(''); load(q, '', ''); }} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs">Sıfırla</button>}
+          <button onClick={() => load(q, from, to, { role, status, sort })} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs text-white">{t('admin.filterApply')}</button>
+          {(from || to) && <button onClick={() => { setFrom(''); setTo(''); load(q, '', ''); }} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs">{t('admin.filterReset')}</button>}
           <div className="flex-1" />
           <button onClick={() => exportCsv('users')} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs flex items-center gap-1.5">⬇ Kullanıcılar CSV</button>
           <button onClick={() => exportCsv('transactions')} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs flex items-center gap-1.5">⬇ İşlemler CSV</button>
