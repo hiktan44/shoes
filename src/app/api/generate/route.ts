@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     const firstStagePrompt = `${buildStudioPrompt({ isDesignMode, shoeType, customPrompt: prompt, refHints })} ${protectionRule}`;
 
     // Multi-image composition gerektiren tasarım modunda nano-banana-pro kullan (referansları gerçekten okur).
-    // Tek görselli foto modunda seedream-lite yeterli ve daha hızlı.
+    // Tek görselli foto modunda Seedream 5 Pro kullan.
     const hasMultipleRefs = allInputUrls.length > 1;
     const useNanoBanana = isDesignMode || hasMultipleRefs;
 
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
           quality: 'basic',
         };
 
-    const modelSlug = useNanoBanana ? 'nano-banana-pro' : 'seedream/5-lite-image-to-image';
+    const modelSlug = useNanoBanana ? 'nano-banana-pro' : 'seedream/5-pro-image-to-image';
 
     // Kredi düş (stage 1 = 'studio' = 1 kredi) — yetersizse 402
     const charge = await deductCredits(user.id, 'studio');
