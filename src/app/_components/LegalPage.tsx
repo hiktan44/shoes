@@ -12,6 +12,15 @@ export function LegalPage({ titleKey, children }: { titleKey: string; children: 
         <h1 className="mt-6 text-3xl font-bold">{t(titleKey as any)}</h1>
         <p className="mt-2 text-sm text-zinc-400">Son güncelleme: 18 Ağustos 2026</p>
         <div className="mt-8 space-y-5 leading-7 text-zinc-300">{children}</div>
+        <section className="mt-10 border-t border-zinc-800 pt-6 text-sm leading-6 text-zinc-400">
+          <h2 className="font-semibold text-zinc-200">İşletmeci ve destek</h2>
+          <p className="mt-2">
+            STRATEJİ DANIŞMANLIK HİZMETLERİ SAN. VE TİC. A.Ş.<br />
+            Zafer Mah. Kumrulu Sok. No. 2/18 Bahçelievler/İstanbul<br />
+            Yenibosna V.D. · Vergi No: 7810520457<br />
+            <a className="text-indigo-300 underline" href="mailto:info@stratejidanismanlik.com.tr">info@stratejidanismanlik.com.tr</a>
+          </p>
+        </section>
       </article>
     </main>
   );
