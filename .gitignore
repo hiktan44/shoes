@@ -37,3 +37,7 @@ yarn-error.log*
 
 # Local Claude Code state
 .claude/
+
+# Supabase CLI yerel önbelleği
+supabase/.temp/
+supabase/.branches/

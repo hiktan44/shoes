@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'ui_lang';
 const COOKIE_KEY = 'ui_lang';
@@ -49,8 +49,8 @@ const getIpCountry = async (): Promise<string | null> => {
 
 const detectInitialLang = async (): Promise<Lang> => {
   // 1. Check localStorage preference (highest priority)
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'tr' || stored === 'en') return stored;
+  const stored = readPreference();
+  if (stored) return stored;
 
   // 2. Check IP-based detection
   const country = await getIpCountry();
@@ -68,54 +68,75 @@ const detectInitialLang = async (): Promise<Lang> => {
 };
 
 let currentLang: Lang | null = null;
-let langResolve: ((lang: Lang) => void) | null = null;
+let detectionStarted = false;
+
+function isLang(value: unknown): value is Lang {
+  return value === 'tr' || value === 'en';
+}
+
+function readPreference(): Lang | null {
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    return isLang(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function getSnapshot(): Lang {
+  return currentLang ?? readPreference() ?? 'tr';
+}
+
+function announce(lang: Lang) {
+  window.dispatchEvent(new CustomEvent(EVENT_KEY, { detail: { lang } }));
+}
+
+function subscribe(callback: () => void) {
+  const handleLangChange = (event: Event) => {
+    const value = (event as CustomEvent<{ lang?: unknown }>).detail?.lang;
+    if (!isLang(value)) return;
+    currentLang = value;
+    callback();
+  };
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEY && event.key !== null) return;
+    currentLang = isLang(event.newValue) ? event.newValue : 'tr';
+    callback();
+  };
+  window.addEventListener(EVENT_KEY, handleLangChange);
+  window.addEventListener('storage', handleStorage);
+
+  if (currentLang === null) currentLang = readPreference();
+  if (currentLang === null && !detectionStarted) {
+    detectionStarted = true;
+    void detectInitialLang().then(detected => {
+      // Bekleyen ülke sorgusu açık bir kullanıcı tercihini değiştiremez.
+      if (currentLang !== null) return;
+      currentLang = detected;
+      announce(detected);
+    });
+  }
+
+  return () => {
+    window.removeEventListener(EVENT_KEY, handleLangChange);
+    window.removeEventListener('storage', handleStorage);
+  };
+}
+
+function setLang(newLang: Lang) {
+  if (!isLang(newLang) || typeof window === 'undefined') return;
+  currentLang = newLang;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, newLang);
+  } catch {}
+  try {
+    document.cookie = `${COOKIE_KEY}=${newLang}; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax`;
+  } catch {}
+  announce(newLang);
+}
 
 export const useLang = () => {
-  const [lang, setLangState] = useState<Lang>(() => {
-    if (currentLang) return currentLang;
-    // Sync with localStorage immediately for SSR safety
-    const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-    return (stored === 'tr' || stored === 'en') ? stored : 'tr';
-  });
-
-  useEffect(() => {
-    if (currentLang) {
-      setLangState(currentLang);
-      return;
-    }
-
-    if (!langResolve) {
-      langResolve = () => {};
-      detectInitialLang().then(detected => {
-        currentLang = detected;
-        setLangState(detected);
-        if (langResolve) langResolve(detected);
-      });
-    }
-  }, []);
-
-  const setLang = (newLang: Lang) => {
-    currentLang = newLang;
-    setLangState(newLang);
-    
-    // Persist
-    try {
-      localStorage.setItem(STORAGE_KEY, newLang);
-      document.cookie = `${COOKIE_KEY}=${newLang}; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax`;
-    } catch {}
-
-    // Dispatch event for other tabs/components
-    window.dispatchEvent(new CustomEvent(EVENT_KEY, { detail: { lang: newLang } }));
-  };
-
-  useEffect(() => {
-    const handleLangChange = (e: CustomEvent) => {
-      setLangState(e.detail.lang);
-    };
-    window.addEventListener(EVENT_KEY, handleLangChange as EventListener);
-    return () => window.removeEventListener(EVENT_KEY, handleLangChange as EventListener);
-  }, []);
-
+  const lang = useSyncExternalStore(subscribe, getSnapshot, () => 'tr' as const);
   return { lang, setLang };
 };
 

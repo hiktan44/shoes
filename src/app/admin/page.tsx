@@ -167,12 +167,12 @@ export default function AdminPage() {
 
   const s = data?.stats || {};
   const STAT_CARDS = [
-    { labelKey: 'admin.statUsers', value: s.total_users, icon: '👥' },
-    { labelKey: 'admin.statAdmins', value: s.admin_users, icon: '🛡️' },
-    { labelKey: 'admin.statCredits', value: s.total_credits, icon: '◆' },
-    { labelKey: 'admin.statGenerations', value: s.total_generations, sub: `${t('admin.statToday')} ${s.today_generations ?? 0}`, icon: '🎨' },
-    { labelKey: 'admin.statRevenue', value: undefined, money: s.total_revenue, sub: `${t('admin.statToday')} ${fmtMoney(s.today_revenue ?? 0)}`, icon: '💰' },
-    { labelKey: 'admin.statOrders', value: s.total_orders, icon: '🧾' },
+    { labelKey: 'admin.statUsers' as const, value: s.total_users, icon: '👥' },
+    { labelKey: 'admin.statAdmins' as const, value: s.admin_users, icon: '🛡️' },
+    { labelKey: 'admin.statCredits' as const, value: s.total_credits, icon: '◆' },
+    { labelKey: 'admin.statGenerations' as const, value: s.total_generations, sub: `${t('admin.statToday')} ${s.today_generations ?? 0}`, icon: '🎨' },
+    { labelKey: 'admin.statRevenue' as const, value: undefined, money: s.total_revenue, sub: `${t('admin.statToday')} ${fmtMoney(s.today_revenue ?? 0)}`, icon: '💰' },
+    { labelKey: 'admin.statOrders' as const, value: s.total_orders, icon: '🧾' },
   ];
 
   return (
@@ -197,7 +197,7 @@ export default function AdminPage() {
               <div className="text-2xl font-bold tabular-nums">
                 {loading ? '…' : c.money !== undefined ? fmtMoney(c.money) : (c.value ?? 0).toLocaleString('tr-TR')}
               </div>
-              <div className="text-xs text-zinc-400 mt-0.5">{t(c.labelKey as any)}</div>
+              <div className="text-xs text-zinc-400 mt-0.5">{t(c.labelKey)}</div>
               {c.sub && <div className="text-[10px] text-zinc-600 mt-0.5">{c.sub}</div>}
             </div>
           ))}

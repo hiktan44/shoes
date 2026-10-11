@@ -7,9 +7,9 @@ import { useT } from '@/lib/i18n';
 import LangSwitch from '@/components/LangSwitch';
 
 const TABS = [
-  { href: '/studio',  labelKey: 'app.studio' },
-  { href: '/analyze', labelKey: 'app.analyze' },
-  { href: '/batch',   labelKey: 'app.batch' },
+  { href: '/studio',  labelKey: 'app.studio' as const },
+  { href: '/analyze', labelKey: 'app.analyze' as const },
+  { href: '/batch',   labelKey: 'app.batch' as const },
 ];
 
 export default function AppNav() {
@@ -69,7 +69,7 @@ export default function AppNav() {
                     : 'border-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'
                 }`}
               >
-                {t(tab.labelKey as any)}
+                {t(tab.labelKey)}
               </Link>
             );
           })}

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:credits",
+    "test:credits": "node --test tests/credits-permissions.test.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "stripe": "^22.1.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -29,6 +31,7 @@
     "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "happy-dom": "20.14.6",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.5"

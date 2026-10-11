@@ -20,69 +20,69 @@ const IMG = {
 
 const FEATURES = [
   {
-    tag: 'STÜDYO ÇEKİMİ', tagKey: 'feature.studio.title', tone: 'text-rose-600 bg-rose-50',
-    titleKey: 'feature.studio.title',
-    bodyKey: 'feature.studio.body',
-    pointKeys: ['feature.studio.p1', 'feature.studio.p2', 'feature.studio.p3'],
+    tag: 'STÜDYO ÇEKİMİ', tagKey: 'feature.studio.title' as const, tone: 'text-rose-600 bg-rose-50',
+    titleKey: 'feature.studio.title' as const,
+    bodyKey: 'feature.studio.body' as const,
+    pointKeys: ['feature.studio.p1', 'feature.studio.p2', 'feature.studio.p3'] as const,
     img: IMG.studio, flip: false,
   },
   {
-    tag: 'AI TASARIM', tagKey: 'feature.design.title', tone: 'text-indigo-600 bg-indigo-50',
-    titleKey: 'feature.design.title',
-    bodyKey: 'feature.design.body',
-    pointKeys: ['feature.design.p1', 'feature.design.p2', 'feature.design.p3'],
+    tag: 'AI TASARIM', tagKey: 'feature.design.title' as const, tone: 'text-indigo-600 bg-indigo-50',
+    titleKey: 'feature.design.title' as const,
+    bodyKey: 'feature.design.body' as const,
+    pointKeys: ['feature.design.p1', 'feature.design.p2', 'feature.design.p3'] as const,
     img: IMG.design, flip: true,
   },
   {
-    tag: 'ÇOKLU POZ KATALOĞU', tagKey: 'feature.pose.title', tone: 'text-amber-600 bg-amber-50',
-    titleKey: 'feature.pose.title',
-    bodyKey: 'feature.pose.body',
-    pointKeys: ['feature.pose.p1', 'feature.pose.p2', 'feature.pose.p3'],
+    tag: 'ÇOKLU POZ KATALOĞU', tagKey: 'feature.pose.title' as const, tone: 'text-amber-600 bg-amber-50',
+    titleKey: 'feature.pose.title' as const,
+    bodyKey: 'feature.pose.body' as const,
+    pointKeys: ['feature.pose.p1', 'feature.pose.p2', 'feature.pose.p3'] as const,
     img: IMG.pose, flip: false,
   },
   {
-    tag: 'HEDEFLİ RÖTUŞ', tagKey: 'feature.retouch.title', tone: 'text-cyan-600 bg-cyan-50',
-    titleKey: 'feature.retouch.title',
-    bodyKey: 'feature.retouch.body',
-    pointKeys: ['feature.retouch.p1', 'feature.retouch.p2', 'feature.retouch.p3'],
+    tag: 'HEDEFLİ RÖTUŞ', tagKey: 'feature.retouch.title' as const, tone: 'text-cyan-600 bg-cyan-50',
+    titleKey: 'feature.retouch.title' as const,
+    bodyKey: 'feature.retouch.body' as const,
+    pointKeys: ['feature.retouch.p1', 'feature.retouch.p2', 'feature.retouch.p3'] as const,
     img: IMG.retouch, flip: true,
   },
   {
-    tag: 'E-TİCARET ANALİZİ', tagKey: 'feature.analyze.title', tone: 'text-emerald-600 bg-emerald-50',
-    titleKey: 'feature.analyze.title',
-    bodyKey: 'feature.analyze.body',
-    pointKeys: ['feature.analyze.p1', 'feature.analyze.p2', 'feature.analyze.p3'],
+    tag: 'E-TİCARET ANALİZİ', tagKey: 'feature.analyze.title' as const, tone: 'text-emerald-600 bg-emerald-50',
+    titleKey: 'feature.analyze.title' as const,
+    bodyKey: 'feature.analyze.body' as const,
+    pointKeys: ['feature.analyze.p1', 'feature.analyze.p2', 'feature.analyze.p3'] as const,
     img: IMG.analyze, flip: false,
   },
   {
-    tag: 'TOPLU ÜRETİM', tagKey: 'feature.batch.title', tone: 'text-fuchsia-600 bg-fuchsia-50',
-    titleKey: 'feature.batch.title',
-    bodyKey: 'feature.batch.body',
-    pointKeys: ['feature.batch.p1', 'feature.batch.p2', 'feature.batch.p3'],
+    tag: 'TOPLU ÜRETİM', tagKey: 'feature.batch.title' as const, tone: 'text-fuchsia-600 bg-fuchsia-50',
+    titleKey: 'feature.batch.title' as const,
+    bodyKey: 'feature.batch.body' as const,
+    pointKeys: ['feature.batch.p1', 'feature.batch.p2', 'feature.batch.p3'] as const,
     img: IMG.batch, flip: true,
   },
 ];
 
 const MINI = [
-  { hKey: 'mini.album', dKey: 'mini.albumDesc' },
-  { hKey: 'mini.credits', dKey: 'mini.creditsDesc' },
-  { hKey: 'mini.turkish', dKey: 'mini.turkishDesc' },
-  { hKey: 'mini.secure', dKey: 'mini.secureDesc' },
-  { hKey: 'mini.resolution', dKey: 'mini.resolutionDesc' },
-  { hKey: 'mini.free', dKey: 'mini.freeDesc' },
+  { hKey: 'mini.album' as const, dKey: 'mini.albumDesc' as const },
+  { hKey: 'mini.credits' as const, dKey: 'mini.creditsDesc' as const },
+  { hKey: 'mini.turkish' as const, dKey: 'mini.turkishDesc' as const },
+  { hKey: 'mini.secure' as const, dKey: 'mini.secureDesc' as const },
+  { hKey: 'mini.resolution' as const, dKey: 'mini.resolutionDesc' as const },
+  { hKey: 'mini.free' as const, dKey: 'mini.freeDesc' as const },
 ];
 
 const STEPS = [
-  { n: '01', hKey: 'how.step1.title', dKey: 'how.step1.desc' },
-  { n: '02', hKey: 'how.step2.title', dKey: 'how.step2.desc' },
-  { n: '03', hKey: 'how.step3.title', dKey: 'how.step3.desc' },
+  { n: '01', hKey: 'how.step1.title' as const, dKey: 'how.step1.desc' as const },
+  { n: '02', hKey: 'how.step2.title' as const, dKey: 'how.step2.desc' as const },
+  { n: '03', hKey: 'how.step3.title' as const, dKey: 'how.step3.desc' as const },
 ];
 
 const FAQ = [
-  { qKey: 'faq.q1', aKey: 'faq.a1' },
-  { qKey: 'faq.q2', aKey: 'faq.a2' },
-  { qKey: 'faq.q3', aKey: 'faq.a3' },
-  { qKey: 'faq.q4', aKey: 'faq.a4' },
+  { qKey: 'faq.q1' as const, aKey: 'faq.a1' as const },
+  { qKey: 'faq.q2' as const, aKey: 'faq.a2' as const },
+  { qKey: 'faq.q3' as const, aKey: 'faq.a3' as const },
+  { qKey: 'faq.q4' as const, aKey: 'faq.a4' as const },
 ];
 
 export default function Landing() {
@@ -175,8 +175,8 @@ export default function Landing() {
           {STEPS.map(s => (
             <div key={s.n} className="relative bg-zinc-50 rounded-2xl p-7 border border-zinc-100">
               <div className="text-5xl font-black text-zinc-200">{s.n}</div>
-              <h3 className="mt-3 text-lg font-bold">{t(s.hKey as any)}</h3>
-              <p className="mt-1.5 text-zinc-600 text-sm">{t(s.dKey as any)}</p>
+              <h3 className="mt-3 text-lg font-bold">{t(s.hKey)}</h3>
+              <p className="mt-1.5 text-zinc-600 text-sm">{t(s.dKey)}</p>
             </div>
           ))}
         </div>
@@ -188,20 +188,20 @@ export default function Landing() {
           {FEATURES.map(f => (
             <div key={f.tag} className={`grid md:grid-cols-2 gap-10 md:gap-16 items-center ${f.flip ? 'md:[&>div:first-child]:order-2' : ''}`}>
               <div>
-                <span className={`inline-block text-xs font-bold tracking-widest px-3 py-1.5 rounded-full ${f.tone}`}>{t(f.tagKey as any)}</span>
-                <h3 className="mt-4 text-2xl md:text-[2rem] leading-tight font-black tracking-tight">{t(f.titleKey as any)}</h3>
-                <p className="mt-4 text-zinc-600">{t(f.bodyKey as any)}</p>
+                <span className={`inline-block text-xs font-bold tracking-widest px-3 py-1.5 rounded-full ${f.tone}`}>{t(f.tagKey)}</span>
+                <h3 className="mt-4 text-2xl md:text-[2rem] leading-tight font-black tracking-tight">{t(f.titleKey)}</h3>
+                <p className="mt-4 text-zinc-600">{t(f.bodyKey)}</p>
                 <ul className="mt-5 space-y-2">
                   {f.pointKeys.map(pKey => (
                     <li key={pKey} className="flex items-start gap-2.5 text-sm text-zinc-700">
                       <span className="mt-0.5 w-5 h-5 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[11px] shrink-0">✓</span>
-                      {t(pKey as any)}
+                      {t(pKey)}
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="relative">
-                <img src={f.img} alt={t(f.tagKey as any)} className="rounded-2xl shadow-xl object-cover w-full h-[340px] md:h-[400px]" />
+                <img src={f.img} alt={t(f.tagKey)} className="rounded-2xl shadow-xl object-cover w-full h-[340px] md:h-[400px]" />
               </div>
             </div>
           ))}
@@ -217,8 +217,8 @@ export default function Landing() {
         <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {MINI.map(m => (
             <div key={m.hKey} className="rounded-2xl border border-zinc-200 p-6 hover:border-zinc-900 hover:shadow-lg transition">
-              <h3 className="font-bold text-lg">{t(m.hKey as any)}</h3>
-              <p className="mt-1.5 text-sm text-zinc-600">{t(m.dKey as any)}</p>
+              <h3 className="font-bold text-lg">{t(m.hKey)}</h3>
+              <p className="mt-1.5 text-sm text-zinc-600">{t(m.dKey)}</p>
             </div>
           ))}
         </div>
@@ -239,13 +239,13 @@ export default function Landing() {
           </div>
           <div className="mt-10 grid sm:grid-cols-3 gap-5">
             {[
-              { nKey: 'pricing.plans.basic', c: '100 kredi', p: '1.399 ₺' },
-              { nKey: 'pricing.plans.standard', c: '250 kredi', p: '3.199 ₺', pop: true },
-              { nKey: 'pricing.plans.pro', c: '500 kredi', p: '5.999 ₺' },
+              { nKey: 'pricing.plans.basic' as const, c: '100 kredi', p: '1.399 ₺' },
+              { nKey: 'pricing.plans.standard' as const, c: '250 kredi', p: '3.199 ₺', pop: true },
+              { nKey: 'pricing.plans.pro' as const, c: '500 kredi', p: '5.999 ₺' },
             ].map(p => (
               <div key={p.nKey} className={`rounded-2xl p-7 border ${p.pop ? 'bg-white text-zinc-900 border-white' : 'border-zinc-700'}`}>
                 {p.pop && <span className="text-[11px] font-bold text-rose-600">{t('pricing.popular')}</span>}
-                <div className="mt-1 text-lg font-bold">{t(p.nKey as any)}</div>
+                <div className="mt-1 text-lg font-bold">{t(p.nKey)}</div>
                 <div className={`text-sm ${p.pop ? 'text-zinc-500' : 'text-zinc-400'}`}>{p.c}</div>
                 <div className="mt-4 text-3xl font-black">{p.p}</div>
               </div>
@@ -264,10 +264,10 @@ export default function Landing() {
           {FAQ.map(item => (
             <details key={item.qKey} className="group py-5">
               <summary className="flex items-center justify-between cursor-pointer list-none font-semibold">
-                {t(item.qKey as any)}
+                {t(item.qKey)}
                 <span className="text-zinc-400 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
               </summary>
-              <p className="mt-3 text-zinc-600 text-sm leading-relaxed">{t(item.aKey as any)}</p>
+              <p className="mt-3 text-zinc-600 text-sm leading-relaxed">{t(item.aKey)}</p>
             </details>
           ))}
         </div>
