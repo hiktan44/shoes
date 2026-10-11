@@ -4,18 +4,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n';
 
 const PACKAGES = [
-  { id: 'SMALL', labelKey: 'pricing.plans.basic', credits: 100, priceTRY: 1399, popular: false },
-  { id: 'MEDIUM', labelKey: 'pricing.plans.standard', credits: 250, priceTRY: 3199, popular: true },
-  { id: 'LARGE', labelKey: 'pricing.plans.pro', credits: 500, priceTRY: 5999, popular: false },
+  { id: 'SMALL', labelKey: 'pricing.plans.basic' as const, credits: 100, priceTRY: 1399, popular: false },
+  { id: 'MEDIUM', labelKey: 'pricing.plans.standard' as const, credits: 250, priceTRY: 3199, popular: true },
+  { id: 'LARGE', labelKey: 'pricing.plans.pro' as const, credits: 500, priceTRY: 5999, popular: false },
 ];
 
 const USAGE = [
-  { labelKey: 'pricing.usage.photo', cost: '1 kredi' },
-  { labelKey: 'pricing.usage.design', cost: '2 kredi' },
-  { labelKey: 'pricing.usage.pose', cost: '1 kredi' },
-  { labelKey: 'pricing.usage.album', cost: '2 kredi' },
-  { labelKey: 'pricing.usage.retouch', cost: '1 kredi' },
-  { labelKey: 'pricing.usage.analyze', cost: '1 kredi' },
+  { labelKey: 'pricing.usage.photo' as const, cost: '1 kredi' },
+  { labelKey: 'pricing.usage.design' as const, cost: '2 kredi' },
+  { labelKey: 'pricing.usage.pose' as const, cost: '1 kredi' },
+  { labelKey: 'pricing.usage.album' as const, cost: '2 kredi' },
+  { labelKey: 'pricing.usage.retouch' as const, cost: '1 kredi' },
+  { labelKey: 'pricing.usage.analyze' as const, cost: '1 kredi' },
 ];
 
 const PKG_FEATURES = [
@@ -26,7 +26,7 @@ const PKG_FEATURES = [
   'pricing.features.retouch',
   'pricing.features.analyze',
   'pricing.features.neverExpire',
-];
+] as const;
 
 function PricingInner() {
   const { t } = useT();
@@ -125,7 +125,7 @@ function PricingInner() {
                   {t('pricing.popular')}
                 </span>
               )}
-              <h3 className="text-lg font-semibold">{t(pkg.labelKey as any)}</h3>
+              <h3 className="text-lg font-semibold">{t(pkg.labelKey)}</h3>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="text-4xl font-bold">{pkg.priceTRY.toLocaleString('tr-TR')}</span>
                 <span className="text-zinc-400 text-lg">₺</span>
@@ -137,7 +137,7 @@ function PricingInner() {
 
               <ul className="mt-6 space-y-2 flex-1">
                 {PKG_FEATURES.map(f => (
-                  <li key={f} className="text-sm text-zinc-300">{t(f as any)}</li>
+                  <li key={f} className="text-sm text-zinc-300">{t(f)}</li>
                 ))}
               </ul>
 
@@ -163,7 +163,7 @@ function PricingInner() {
             <div className="divide-y divide-zinc-800/70">
               {USAGE.map(u => (
                 <div key={u.labelKey} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="text-zinc-300">{t(u.labelKey as any)}</span>
+                  <span className="text-zinc-300">{t(u.labelKey)}</span>
                   <span className="text-indigo-300 font-medium">{u.cost}</span>
                 </div>
               ))}
