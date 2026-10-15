@@ -1,0 +1,11 @@
+import {test,mock} from 'node:test';import assert from 'node:assert/strict';
+const start='2026-10-14T04:00:00.000Z',end='2026-10-15T04:00:00.000Z';
+let signedIn=false,admin=false,failed=false,counts=0;
+process.env.NEXT_PUBLIC_SUPABASE_URL='https://synthetic-db.invalid';process.env.SUPABASE_SERVICE_ROLE_KEY='synthetic-test-only';process.env.ADMIN_EMAILS='';
+mock.module('@/lib/supabase/server',{namedExports:{createClient:async()=>({auth:{getUser:async()=>({data:{user:signedIn?{id:'00000000-0000-4000-8000-000000000001',email:'synthetic@example.test'}:null}})}})}});
+globalThis.fetch=async(_url,options)=>{const sql=JSON.parse(String(options?.body)).query;if(sql.includes('select is_admin'))return Response.json([{is_admin:admin}]);counts++;if(failed)throw Error('private SQL error');assert.match(sql,/FROM auth.users/);assert.ok(sql.includes(start)&&sql.includes(end));return Response.json([{total:'4',fresh:'2'}])};
+const {GET}=await import('../app/api/admin/subscriber-summary/route.ts');
+const request=(a=start)=>new Request('https://synthetic.test/api/admin/subscriber-summary?'+new URLSearchParams({start:a,end}));
+test('existing Supabase/current-admin guard rejects anonymous and member before aggregate',async()=>{assert.equal((await GET(request())).status,403);signedIn=true;assert.equal((await GET(request())).status,403);assert.equal(counts,0)});
+test('admin gets aggregate without exposing credentials or customers',async()=>{admin=true;const res=await GET(request());const data=await res.json();assert.equal(res.status,200);assert.match(res.headers.get('cache-control')!,/no-store/);assert.equal(data.registeredAccounts.total,4);assert.equal(data.registeredAccounts.new,2);assert.equal(data.paidSubscribers.active,null);assert.equal(data.usage.totalMinutes,null);assert.ok(!JSON.stringify(data).includes('synthetic@example.test'));assert.ok(!JSON.stringify(data).includes('synthetic-test-only'))});
+test('invalid period and source failure do not become zero',async()=>{const n=counts;assert.equal((await GET(request('2026-02-30T00:00:00Z'))).status,400);assert.equal(counts,n);failed=true;const res=await GET(request());assert.equal(res.status,503);assert.deepEqual(await res.json(),{error:'REPORT_SOURCE_UNAVAILABLE'})});
