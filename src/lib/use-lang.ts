@@ -57,13 +57,16 @@ const detectInitialLang = async (): Promise<Lang> => {
   if (country === 'TR') return 'tr';
   if (country) return 'en';
 
-  // 3. Fallback to navigator.language
-  if (typeof navigator !== 'undefined' && navigator.language) {
-    const lang = navigator.language.toLowerCase();
-    if (lang.startsWith('tr')) return 'tr';
+  // 3. IP lookup failed (blocked, rate-limited or offline): use the browser
+  //    language. Any non-Turkish browser gets English, so a foreign visitor
+  //    never lands on Turkish just because the lookup service was unreachable.
+  if (typeof navigator !== 'undefined') {
+    const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+    const primary = (langs.find(Boolean) || '').toLowerCase();
+    if (primary) return primary.startsWith('tr') ? 'tr' : 'en';
   }
 
-  // 4. Ultimate fallback
+  // 4. Nothing known about the visitor
   return 'tr';
 };
 
@@ -84,11 +87,17 @@ export const useLang = () => {
       return;
     }
 
+    // Only the first hook instance runs detection, but every instance must
+    // receive the result. React runs child effects first, so the instance that
+    // starts detection is usually a small child (e.g. LangSwitch), not the page
+    // body; broadcasting the result keeps the whole page in the detected language.
     if (!langResolve) {
       langResolve = () => {};
       detectInitialLang().then(detected => {
         currentLang = detected;
         setLangState(detected);
+        try { document.documentElement.lang = detected; } catch {}
+        window.dispatchEvent(new CustomEvent(EVENT_KEY, { detail: { lang: detected } }));
         if (langResolve) langResolve(detected);
       });
     }
